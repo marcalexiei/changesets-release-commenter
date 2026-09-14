@@ -58,7 +58,7 @@ jobs:
       - id: changesets
         uses: changesets/action@v2
         with:
-          publish-script: 'npm run release'
+          publish-script: 'pnpm release'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -133,10 +133,10 @@ already carrying it is skipped.
 ## Development
 
 ```bash
-npm ci
-npm run typecheck
-npm test        # unit tests; the playground integration test runs only when that repo is checked out
-npm run build   # rolldown -> dist/index.js
+pnpm install
+pnpm typecheck
+pnpm test        # unit tests; the playground integration test runs only when that repo is checked out
+pnpm build   # rolldown -> dist/index.js
 ```
 
 `dist/` is gitignored and never lives on `main`. A release commits it on a detached commit,
