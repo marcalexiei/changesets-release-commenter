@@ -35,14 +35,14 @@ jobs:
 
       - uses: ./.github/actions/ci-setup
 
-      - run: npm run build
+      - run: pnpm build
 
       - name: Create version PR or release
         uses: changesets/action@v2
         with:
           github-token: ${{ steps.release-helper.outputs.token }}
-          version-script: 'npm run bump'
-          publish-script: 'npm run release'
+          version-script: 'pnpm bump'
+          publish-script: 'pnpm release'
           commit-message: 'chore: version'
           pr-title: 'chore: version'
         env:
