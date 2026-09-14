@@ -1,5 +1,11 @@
 # changesets-release-commenter
 
+## 0.1.3
+
+### Patch Changes
+
+- [#5](https://github.com/marcalexiei/changesets-release-commenter/pull/5) [`401d0d3`](https://github.com/marcalexiei/changesets-release-commenter/commit/401d0d3daa437bdf178b5ff811d8e1d2ed4c42af) - chore: build and test with pnpm
+
 ## 0.1.2
 
 ### Patch Changes
