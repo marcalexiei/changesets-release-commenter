@@ -5,6 +5,19 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { exec } from '@actions/exec';
+import { getOctokit } from '@actions/github';
+
+/** The CHANGELOG section for one version, used as the release notes. */
+function releaseNotes(version: string): string {
+  const changelog = fs.readFileSync('CHANGELOG.md', 'utf8');
+  const start = changelog.indexOf(`\n## ${version}\n`);
+  if (start === -1) {
+    return `See CHANGELOG.md for ${version}.`;
+  }
+  const rest = changelog.slice(start + 1);
+  const next = rest.indexOf('\n## ');
+  return (next === -1 ? rest : rest.slice(0, next)).trim();
+}
 
 /** package.json's version, read without asserting a shape onto JSON.parse. */
 function readVersion(): string {
@@ -56,3 +69,22 @@ if (isPrerelease) {
     },
   );
 }
+
+// The Marketplace lists an action from its GitHub Releases, not from its tags.
+const repository = process.env.GITHUB_REPOSITORY;
+if (repository === undefined) {
+  throw new Error('GITHUB_REPOSITORY is required');
+}
+const [owner, repo] = repository.split('/');
+if (owner === undefined || repo === undefined) {
+  throw new Error(`GITHUB_REPOSITORY is malformed: ${repository}`);
+}
+
+await getOctokit(githubToken).rest.repos.createRelease({
+  owner,
+  repo,
+  tag_name: tag,
+  name: tag,
+  body: releaseNotes(version),
+  prerelease: isPrerelease,
+});
