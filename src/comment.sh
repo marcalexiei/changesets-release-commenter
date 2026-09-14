@@ -7,6 +7,8 @@ set -euo pipefail
 COMMENT_ON="${COMMENT_ON:-both}"
 MARKER_ID="${MARKER_ID:-changesets-release-commenter}"
 DRY_RUN="${DRY_RUN:-false}"
+LINK_RELEASES="${LINK_RELEASES:-true}"
+SERVER_URL="${SERVER_URL:-https://github.com}"
 
 log() { printf '%s\n' "$*" >&2; }
 
@@ -47,10 +49,18 @@ post() {
   fi
 }
 
+# GitHub encodes `@` in a release tag URL but leaves `/` literal, so a scoped tag reads
+# .../releases/tag/%40scope/name%401.0.0 — mirror that rather than fully percent-encoding.
 render() {
   local lead="$1" packages="$2" marker="$3"
   printf '%s\n\n' "$lead"
-  jq -r '.[] | "- `" + . + "`"' <<<"$packages"
+  if [[ "$LINK_RELEASES" == "true" ]]; then
+    jq -r --arg base "${SERVER_URL}/${GH_REPO}/releases/tag/" '
+      .[] | "- [`" + . + "`](" + $base + gsub("@"; "%40") + ")"
+    ' <<<"$packages"
+  else
+    jq -r '.[] | "- `" + . + "`"' <<<"$packages"
+  fi
   printf '\n%s' "$marker"
 }
 

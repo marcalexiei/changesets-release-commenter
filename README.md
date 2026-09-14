@@ -4,12 +4,12 @@ Comments on the pull requests a [Changesets](https://github.com/changesets/chang
 shipped, and on the issues those PRs close — naming **which package at which version** each one
 shipped in.
 
-```
-🚀 Fixed by #433, released in:
+> 🚀 Fixed by #433, released in:
+>
+> - [`eslint-plugin-zod-mini@1.9.1`](https://github.com/marcalexiei/eslint-zod/releases/tag/eslint-plugin-zod-mini%401.9.1)
+> - [`eslint-plugin-zod@4.12.1`](https://github.com/marcalexiei/eslint-zod/releases/tag/eslint-plugin-zod%404.12.1)
 
-- `eslint-plugin-zod-mini@1.9.1`
-- `eslint-plugin-zod@4.12.1`
-```
+Each version links to its GitHub release page, so the reader is one click from the notes.
 
 ## Why another one
 
@@ -58,6 +58,7 @@ The job needs `pull-requests: write` and `issues: write`.
 | `github-token`       | `${{ github.token }}`          | Needs `pull-requests: write` and `issues: write`.                   |
 | `comment-on`         | `both`                         | `both`, `prs`, or `issues`.                                         |
 | `resolve-via`        | `auto`                         | `auto`, `changesets`, or `changelog`. See **How it works**.         |
+| `link-releases`      | `true`                         | Link each `package@version` to its GitHub release page.             |
 | `marker-id`          | `changesets-release-commenter` | Hidden marker used to avoid double-posting.                         |
 | `dry-run`            | `false`                        | Resolve and log everything, post nothing.                           |
 

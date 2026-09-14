@@ -30,6 +30,10 @@ inputs:
     description: 'How to find the shipped PRs: `auto`, `changesets`, or `changelog`.'
     required: false
     default: 'auto'
+  link-releases:
+    description: 'Link each package@version to its GitHub release page. Set false if releases are not created.'
+    required: false
+    default: 'true'
 
 outputs:
   released:
@@ -58,4 +62,6 @@ runs:
         COMMENT_ON: ${{ inputs.comment-on }}
         MARKER_ID: ${{ inputs.marker-id }}
         DRY_RUN: ${{ inputs.dry-run }}
+        LINK_RELEASES: ${{ inputs.link-releases }}
+        SERVER_URL: ${{ github.server_url }}
       run: ${{ github.action_path }}/src/comment.sh
