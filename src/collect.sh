@@ -30,8 +30,21 @@ if ! release_sha=$(resolve_release_sha); then
   exit 1
 fi
 
+emit_empty() { printf 'released={}\n' >>"${GITHUB_OUTPUT:-/dev/stdout}"; }
+
+# A root commit has nothing before it: that is a repository's first release, not an error.
+if [[ "$(git rev-list --parents -n1 "$release_sha" | wc -w)" -le 1 ]]; then
+  log "Release commit is the repository root — no earlier changelog to diff against."
+  emit_empty
+  exit 0
+fi
+
 if ! git cat-file -e "${release_sha}~1" 2>/dev/null; then
-  log "ERROR: ${release_sha}~1 is missing — the clone is too shallow. Use fetch-depth: 0."
+  if [[ "$(git rev-parse --is-shallow-repository)" == "true" ]]; then
+    log "ERROR: ${release_sha}~1 is missing and the clone is shallow. Use fetch-depth: 0."
+  else
+    log "ERROR: ${release_sha}~1 is missing from a complete clone."
+  fi
   exit 1
 fi
 
@@ -50,7 +63,7 @@ pairs=$(git diff "${release_sha}~1" "${release_sha}" -- '*CHANGELOG.md' | awk '
 
 if [[ -z "$pairs" ]]; then
   log "No PR links in the changelog diff — nothing to comment on."
-  printf 'released={}\n' >>"${GITHUB_OUTPUT:-/dev/stdout}"
+  emit_empty
   exit 0
 fi
 
