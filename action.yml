@@ -18,50 +18,27 @@ inputs:
     description: 'What to comment on: `both`, `prs`, or `issues`.'
     required: false
     default: 'both'
-  marker-id:
-    description: 'Hidden marker used to avoid double-posting. Must differ from other comment ids on the thread.'
-    required: false
-    default: 'changesets-release-commenter'
-  dry-run:
-    description: 'Resolve and log everything, but post nothing.'
-    required: false
-    default: 'false'
   resolve-via:
     description: 'How to find the shipped PRs: `auto`, `changesets`, or `changelog`.'
     required: false
     default: 'auto'
+  marker-id:
+    description: 'Hidden marker used to avoid double-posting. Must differ from other comment ids on the thread.'
+    required: false
+    default: 'changesets-release-commenter'
   link-releases:
     description: 'Link each package@version to its GitHub release page. Set false if releases are not created.'
     required: false
     default: 'true'
+  dry-run:
+    description: 'Resolve and log everything, but post nothing.'
+    required: false
+    default: 'false'
 
 outputs:
   released:
     description: 'JSON object mapping PR number to the `name@version` list it shipped in.'
-    value: ${{ steps.collect.outputs.released }}
 
 runs:
-  using: 'composite'
-  steps:
-    - name: Collect shipped PRs
-      id: collect
-      shell: bash
-      env:
-        GH_TOKEN: ${{ inputs.github-token }}
-        GH_REPO: ${{ github.repository }}
-        PUBLISHED_PACKAGES: ${{ inputs.published-packages }}
-        RESOLVE_VIA: ${{ inputs.resolve-via }}
-      run: ${{ github.action_path }}/src/collect.sh
-
-    - name: Comment
-      shell: bash
-      env:
-        GH_TOKEN: ${{ inputs.github-token }}
-        GH_REPO: ${{ github.repository }}
-        RELEASED: ${{ steps.collect.outputs.released }}
-        COMMENT_ON: ${{ inputs.comment-on }}
-        MARKER_ID: ${{ inputs.marker-id }}
-        DRY_RUN: ${{ inputs.dry-run }}
-        LINK_RELEASES: ${{ inputs.link-releases }}
-        SERVER_URL: ${{ github.server_url }}
-      run: ${{ github.action_path }}/src/comment.sh
+  using: 'node24'
+  main: 'dist/index.js'
