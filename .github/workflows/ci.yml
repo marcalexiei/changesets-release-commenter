@@ -19,8 +19,9 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/ci-setup
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install dependencies
+        uses: marcalexiei/github-actions/setup-node-and-pnpm@e9655755a6dc0040e650a931ee5d958c7d7a9f22 # v2.3.1
       - name: Lint
         run: pnpm lint:js:ci
       - name: Format
@@ -33,8 +34,9 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/ci-setup
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install dependencies
+        uses: marcalexiei/github-actions/setup-node-and-pnpm@e9655755a6dc0040e650a931ee5d958c7d7a9f22 # v2.3.1
       - name: Typecheck
         run: pnpm typecheck
 
@@ -45,8 +47,9 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/ci-setup
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install dependencies
+        uses: marcalexiei/github-actions/setup-node-and-pnpm@e9655755a6dc0040e650a931ee5d958c7d7a9f22 # v2.3.1
       - name: Test
         run: pnpm test
 
@@ -57,8 +60,9 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/ci-setup
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install dependencies
+        uses: marcalexiei/github-actions/setup-node-and-pnpm@e9655755a6dc0040e650a931ee5d958c7d7a9f22 # v2.3.1
       - name: Build
         run: pnpm build
 
