@@ -1,0 +1,54 @@
+name: 'Changesets Release Commenter'
+description: 'Comment on the PRs and issues shipped by a Changesets release, naming the packages each one shipped in.'
+author: 'marcalexiei'
+
+branding:
+  icon: 'message-square'
+  color: 'blue'
+
+inputs:
+  github-token:
+    description: 'Token used to read PRs and post comments. Needs pull-requests:write and issues:write.'
+    required: false
+    default: ${{ github.token }}
+  published-packages:
+    description: 'The `published-packages` output of changesets/action: [{"name","version"},…].'
+    required: true
+  comment-on:
+    description: 'What to comment on: `both`, `prs`, or `issues`.'
+    required: false
+    default: 'both'
+  marker-id:
+    description: 'Hidden marker used to avoid double-posting. Must differ from other comment ids on the thread.'
+    required: false
+    default: 'changesets-release-commenter'
+  dry-run:
+    description: 'Resolve and log everything, but post nothing.'
+    required: false
+    default: 'false'
+
+outputs:
+  released:
+    description: 'JSON object mapping PR number to the `name@version` list it shipped in.'
+    value: ${{ steps.collect.outputs.released }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Collect shipped PRs
+      id: collect
+      shell: bash
+      env:
+        PUBLISHED_PACKAGES: ${{ inputs.published-packages }}
+      run: ${{ github.action_path }}/src/collect.sh
+
+    - name: Comment
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        GH_REPO: ${{ github.repository }}
+        RELEASED: ${{ steps.collect.outputs.released }}
+        COMMENT_ON: ${{ inputs.comment-on }}
+        MARKER_ID: ${{ inputs.marker-id }}
+        DRY_RUN: ${{ inputs.dry-run }}
+      run: ${{ github.action_path }}/src/comment.sh
