@@ -21,6 +21,9 @@ export async function resolveReleaseSha(
   cwd: string,
   published: PublishedPackage[],
 ): Promise<string> {
+  // changesets/action pushes the release tags; they are not necessarily in the local clone.
+  await gitOrNull(['fetch', '--tags', '--quiet'], cwd);
+
   const tags = await getAllTags(cwd);
   for (const { name, version } of published) {
     for (const tag of [`${name}@${version}`, `v${version}`]) {
@@ -32,9 +35,10 @@ export async function resolveReleaseSha(
       }
     }
   }
+  const tried = published.flatMap(({ name, version }) => [`${name}@${version}`, `v${version}`]);
   throw new Error(
-    'No tag from published-packages resolves to a commit. ' +
-      'Tried <name>@<version> and v<version>.',
+    `No tag from published-packages resolves to a commit. Tried: ${tried.join(', ')}. ` +
+      `Repository has ${tags.size} tag(s): ${[...tags].slice(0, 10).join(', ')}`,
   );
 }
 
