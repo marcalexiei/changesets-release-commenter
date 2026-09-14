@@ -1,5 +1,13 @@
 # changesets-release-commenter
 
+## 0.1.2
+
+### Patch Changes
+
+- [`df0a4a9`](https://github.com/marcalexiei/changesets-release-commenter/commit/df0a4a961625efc6821c48cd7dd31d5b3d0a2ca3) - chore: lint with oxlint and format with oxfmt
+
+- [`c824d9f`](https://github.com/marcalexiei/changesets-release-commenter/commit/c824d9fb768b99ac42f7e78d2142deac1d6adde8) - docs: describe the build and release layout
+
 ## 0.1.1
 
 ### Patch Changes
