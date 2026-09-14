@@ -1,5 +1,11 @@
 # changesets-release-commenter
 
+## 0.2.2
+
+### Patch Changes
+
+- [#14](https://github.com/marcalexiei/changesets-release-commenter/pull/14) [`fc84b74`](https://github.com/marcalexiei/changesets-release-commenter/commit/fc84b748768a7593cdab342e6cc885987f608d56) - Link each version to the tag the repository actually carries. The href was built from `<name>@<version>`, so every comment in a single-package repository — tagged `v<version>` — pointed at a release that does not exist.
+
 ## 0.2.1
 
 ### Patch Changes
