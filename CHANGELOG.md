@@ -1,5 +1,11 @@
 # changesets-release-commenter
 
+## 0.2.1
+
+### Patch Changes
+
+- [#12](https://github.com/marcalexiei/changesets-release-commenter/pull/12) [`e45ec05`](https://github.com/marcalexiei/changesets-release-commenter/commit/e45ec053fc6b418cd6d1446febe59bbc094b9c0a) - Resolve the version commit when the tag names a commit built on top of it. A repository that ships a built artifact commits the build after versioning and tags that child, so the changesets were consumed by an ancestor and nothing was ever found to comment on.
+
 ## 0.2.0
 
 ### Minor Changes
