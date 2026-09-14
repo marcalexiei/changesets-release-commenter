@@ -24,31 +24,57 @@ who opened a `zod-mini` rule request wants the `zod-mini` version, not a list of
   [changesets/action#80](https://github.com/changesets/action/pull/80) stalled in 2021 and does no
   per-package attribution either.
 
-This action reads the release commit's `CHANGELOG.md` diff instead. Changesets writes one changelog
-per package, so the diff _is_ the per-package attribution, for free.
+This action reads the changesets the release consumed. Their front matter names the packages
+exactly as the author declared them, so the attribution is the one Changesets itself used —
+no guessing from file paths, and no dependency on a particular changelog generator.
 
 ## Usage
 
+Add one step to the job that already runs `changesets/action`:
+
 ```yaml
-- name: Checkout
-  uses: actions/checkout@v4
-  with:
-    fetch-depth: 0 # the action needs history before the release commit
+name: Release
 
-- id: changesets
-  uses: changesets/action@v2
-  with:
-    publish-script: 'npm run release'
+on:
+  push:
+    branches: [main]
 
-- name: Comment on shipped PRs and issues
-  if: steps.changesets.outputs.published == 'true'
-  continue-on-error: true # packages are already published; a failed comment must not fail the release
-  uses: marcalexiei/changesets-release-commenter@v0
-  with:
-    published-packages: ${{ steps.changesets.outputs.published-packages }}
+permissions: {}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write # release commits and tags
+      pull-requests: write # the version PR, and commenting on shipped PRs
+      issues: write # commenting on the issues those PRs close
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the action needs history before the release commit
+
+      - id: changesets
+        uses: changesets/action@v2
+        with:
+          publish-script: 'npm run release'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Comment on shipped PRs and issues
+        if: steps.changesets.outputs.published == 'true'
+        continue-on-error: true # the packages are already published; a failed comment must not fail the release
+        uses: marcalexiei/changesets-release-commenter@v0
+        with:
+          published-packages: ${{ steps.changesets.outputs.published-packages }}
 ```
 
-The job needs `pull-requests: write` and `issues: write`.
+Two details in that step are deliberate:
+
+- **`if: … published == 'true'`** — only a run that actually published has anything to announce.
+- **`continue-on-error: true`** — the step runs _after_ the packages are out. A failed comment
+  should never turn a successful release red.
 
 ## Inputs
 
@@ -87,7 +113,8 @@ The job needs `pull-requests: write` and `issues: write`.
 3. Comments on each PR, then resolves `closingIssuesReferences` per PR and comments on each issue,
    unioning the packages when several PRs close the same one.
 
-Both routes are verified to produce identical output on the same release.
+Both routes are verified to produce identical output on the same release, so `auto` changes
+nothing but the number of API calls.
 
 Re-running is a no-op: each comment carries a marker holding the exact package set, and a thread
 already carrying it is skipped.
@@ -115,3 +142,7 @@ npm run build   # rolldown -> dist/index.js
 `dist/` is gitignored and never lives on `main`. A release commits it on a detached commit,
 tags `vX.Y.Z`, and force-moves the `vX` branch at it — so `@v0` always points at a built bundle.
 That is the same shape `changesets/action` uses to release itself.
+
+## License
+
+MIT
