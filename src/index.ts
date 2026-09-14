@@ -1,7 +1,7 @@
 import { getBooleanInput, getInput, info, setFailed, setOutput } from '@actions/core';
 import { context, getOctokit } from '@actions/github';
 
-import { collect } from './collect.js';
+import { collect, resolveTags } from './collect.js';
 import { comment } from './comment.js';
 import type { CommentApi } from './comment.js';
 import type { PublishedPackage } from './types.js';
@@ -136,6 +136,7 @@ async function run(): Promise<void> {
     linkReleases: getBooleanInput('link-releases'),
     serverUrl: process.env.GITHUB_SERVER_URL ?? 'https://github.com',
     repo: `${owner}/${repo}`,
+    tags: await resolveTags(cwd, published),
   });
 }
 
