@@ -1,5 +1,11 @@
 # changesets-release-commenter
 
+## 0.1.4
+
+### Patch Changes
+
+- [#7](https://github.com/marcalexiei/changesets-release-commenter/pull/7) [`2b79d33`](https://github.com/marcalexiei/changesets-release-commenter/commit/2b79d33899a45d444117705faa8e3e9c45643dbc) - chore: create a GitHub Release for each version
+
 ## 0.1.3
 
 ### Patch Changes
