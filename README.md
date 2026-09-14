@@ -33,7 +33,7 @@ per package, so the diff *is* the per-package attribution, for free.
 - name: Checkout
   uses: actions/checkout@v4
   with:
-    fetch-depth: 0 # required: the diff needs <tag>~1
+    fetch-depth: 0 # the action needs history before the release commit
 
 - id: changesets
   uses: changesets/action@v2
@@ -94,10 +94,24 @@ already carrying it is skipped.
 
 ## Requirements and limits
 
-- `fetch-depth: 0`, so `<tag>~1` and the changesets' own history are reachable.
+- `fetch-depth: 0` is recommended. A shallow clone is deepened automatically, but starting deep
+  is faster and avoids repeated fetches.
 - Works with both workspace monorepos and single-package repos.
 - `closingIssuesReferences` only sees closing keywords in the PR body. Issues closed by hand, or
   referenced only in a commit message, are missed.
 - A changeset committed straight to the default branch has no PR, so it is skipped.
 - `resolve-via: changelog` additionally requires `@changesets/changelog-github`; the default `auto`
   does not.
+
+## Development
+
+```bash
+npm ci
+npm run typecheck
+npm test        # unit tests; the playground integration test runs only when that repo is checked out
+npm run build   # rolldown -> dist/index.js
+```
+
+`dist/` is gitignored and never lives on `main`. A release commits it on a detached commit,
+tags `vX.Y.Z`, and force-moves the `vX` branch at it — so `@v0` always points at a built bundle.
+That is the same shape `changesets/action` uses to release itself.
