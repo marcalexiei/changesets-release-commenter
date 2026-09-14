@@ -71,6 +71,7 @@ async function run(): Promise<void> {
     cwd,
     published,
     resolveVia,
+    includeDependents: getBooleanInput('include-dependents'),
     commitToPullRequest: async (sha) => {
       const { data } = await octokit.rest.repos.listPullRequestsAssociatedWithCommit({
         owner,
@@ -81,13 +82,18 @@ async function run(): Promise<void> {
     },
   });
 
-  const summary = [...released].map(([pr, refs]) => [pr, [...refs].toSorted()]);
+  const summary = [...released].map(([pr, entry]) => [
+    pr,
+    { direct: [...entry.direct].toSorted(), dependents: [...entry.dependents].toSorted() },
+  ]);
   setOutput('released', JSON.stringify(Object.fromEntries(summary)));
 
   if (released.size > 0) {
     info('resolved:');
-    for (const [pr, refs] of released) {
-      info(`  PR #${pr} -> ${[...refs].toSorted().join(', ')}`);
+    for (const [pr, entry] of released) {
+      const extra =
+        entry.dependents.size === 0 ? '' : ` (+${String(entry.dependents.size)} dependent)`;
+      info(`  PR #${pr} -> ${[...entry.direct].toSorted().join(', ')}${extra}`);
     }
   }
 

@@ -78,21 +78,22 @@ Two details in that step are deliberate:
 
 ## Inputs
 
-| Input                | Default                        | Description                                                 |
-| -------------------- | ------------------------------ | ----------------------------------------------------------- |
-| `published-packages` | —, required                    | The `published-packages` output of `changesets/action`.     |
-| `github-token`       | `${{ github.token }}`          | Needs `pull-requests: write` and `issues: write`.           |
-| `comment-on`         | `both`                         | `both`, `prs`, or `issues`.                                 |
-| `resolve-via`        | `auto`                         | `auto`, `changesets`, or `changelog`. See **How it works**. |
-| `link-releases`      | `true`                         | Link each `package@version` to its GitHub release page.     |
-| `marker-id`          | `changesets-release-commenter` | Hidden marker used to avoid double-posting.                 |
-| `dry-run`            | `false`                        | Resolve and log everything, post nothing.                   |
+| Input                | Default                        | Description                                                            |
+| -------------------- | ------------------------------ | ---------------------------------------------------------------------- |
+| `published-packages` | —, required                    | The `published-packages` output of `changesets/action`.                |
+| `github-token`       | `${{ github.token }}`          | Needs `pull-requests: write` and `issues: write`.                      |
+| `comment-on`         | `both`                         | `both`, `prs`, or `issues`.                                            |
+| `resolve-via`        | `auto`                         | `auto`, `changesets`, or `changelog`. See **How it works**.            |
+| `include-dependents` | `true`                         | Also report packages republished because they depend on a changed one. |
+| `link-releases`      | `true`                         | Link each `package@version` to its GitHub release page.                |
+| `marker-id`          | `changesets-release-commenter` | Hidden marker used to avoid double-posting.                            |
+| `dry-run`            | `false`                        | Resolve and log everything, post nothing.                              |
 
 ## Outputs
 
-| Output     | Description                                                        |
-| ---------- | ------------------------------------------------------------------ |
-| `released` | JSON, `{ "<pr>": ["name@version", …] }` — what each PR shipped in. |
+| Output     | Description                                                                             |
+| ---------- | --------------------------------------------------------------------------------------- |
+| `released` | JSON, `{ "<pr>": { "direct": [...], "dependents": [...] } }` — what each PR shipped in. |
 
 ## How it works
 
@@ -110,7 +111,12 @@ Two details in that step are deliberate:
      (`@changesets/changelog-github`). Dependency-bump lines carry only commit links, so transitive
      bumps exclude themselves with no filtering.
    - **`auto`** (default) — try `changesets`, fall back to `changelog`.
-3. Comments on each PR, then resolves `closingIssuesReferences` per PR and comments on each issue,
+3. With `include-dependents` (default), also attributes packages republished _because_ of the
+   change. Changesets records those as `Updated dependencies [[`sha`]]`, and that commit resolves
+   to the PR that caused the bump — so a changeset on a shared internal package still tells the
+   reader which consumer versions carry it. They are listed separately from the direct packages,
+   because the direct ones are what the change _is_ and the dependents are how it reaches people.
+4. Comments on each PR, then resolves `closingIssuesReferences` per PR and comments on each issue,
    unioning the packages when several PRs close the same one.
 
 Both routes are verified to produce identical output on the same release, so `auto` changes
