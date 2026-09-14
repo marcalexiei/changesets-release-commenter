@@ -1,9 +1,11 @@
-export interface PublishedPackage {
+interface PublishedPackage {
   name: string;
   version: string;
 }
 
 /** PR number -> the `name@version` list it shipped in. */
-export type Released = Map<number, Set<string>>;
+type Released = Map<number, Set<string>>;
 
-export type ResolveVia = 'auto' | 'changesets' | 'changelog';
+type ResolveVia = 'auto' | 'changesets' | 'changelog';
+
+export type { PublishedPackage, Released, ResolveVia };

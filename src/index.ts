@@ -1,43 +1,65 @@
-import * as core from '@actions/core';
+import { getBooleanInput, getInput, info, setFailed, setOutput } from '@actions/core';
 import { context, getOctokit } from '@actions/github';
-import { collect } from './collect.js';
-import { comment, type CommentApi } from './comment.js';
-import type { PublishedPackage, ResolveVia } from './types.js';
 
-function parsePublished(raw: string): PublishedPackage[] {
+import { collect } from './collect.js';
+import { comment } from './comment.js';
+import type { CommentApi } from './comment.js';
+import type { PublishedPackage } from './types.js';
+
+function isPublishedPackage(value: unknown): value is PublishedPackage {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'name' in value &&
+    typeof value.name === 'string' &&
+    'version' in value &&
+    typeof value.version === 'string'
+  );
+}
+
+function parsePublished(raw: string): Array<PublishedPackage> {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch {
     throw new Error('published-packages is not valid JSON.');
   }
-  if (!Array.isArray(parsed)) throw new Error('published-packages must be a JSON array.');
-  return parsed.map((p) => {
-    if (
-      typeof p !== 'object' || p === null ||
-      typeof (p as PublishedPackage).name !== 'string' ||
-      typeof (p as PublishedPackage).version !== 'string'
-    ) {
-      throw new Error('each published package needs a string `name` and `version`.');
+  if (!Array.isArray(parsed)) {
+    throw new TypeError('published-packages must be a JSON array.');
+  }
+  const packages: Array<PublishedPackage> = [];
+  for (const entry of parsed as Array<unknown>) {
+    if (!isPublishedPackage(entry)) {
+      throw new TypeError('each published package needs a string `name` and `version`.');
     }
-    return p as PublishedPackage;
-  });
+    packages.push(entry);
+  }
+  return packages;
+}
+
+const RESOLVE_VIA = ['auto', 'changesets', 'changelog'] as const;
+const COMMENT_ON = ['both', 'prs', 'issues'] as const;
+
+/** Narrow a raw input to one of `allowed`, failing with a message that names the options. */
+function oneOf<Option extends string>(
+  allowed: ReadonlyArray<Option>,
+  value: string,
+  input: string,
+): Option {
+  const match = allowed.find((option) => option === value);
+  if (!match) {
+    throw new Error(`${input} must be ${allowed.join(', ')} (got '${value}').`);
+  }
+  return match;
 }
 
 async function run(): Promise<void> {
-  const token = core.getInput('github-token', { required: true });
-  const published = parsePublished(core.getInput('published-packages', { required: true }));
-  const resolveVia = core.getInput('resolve-via') as ResolveVia;
-  const commentOn = core.getInput('comment-on') as 'both' | 'prs' | 'issues';
-
-  if (!['auto', 'changesets', 'changelog'].includes(resolveVia)) {
-    throw new Error(`resolve-via must be auto, changesets or changelog (got '${resolveVia}').`);
-  }
-  if (!['both', 'prs', 'issues'].includes(commentOn)) {
-    throw new Error(`comment-on must be both, prs or issues (got '${commentOn}').`);
-  }
+  const token = getInput('github-token', { required: true });
+  const published = parsePublished(getInput('published-packages', { required: true }));
+  const resolveVia = oneOf(RESOLVE_VIA, getInput('resolve-via'), 'resolve-via');
+  const commentOn = oneOf(COMMENT_ON, getInput('comment-on'), 'comment-on');
   if (published.length === 0) {
-    core.info('published-packages is empty — nothing was released.');
+    info('published-packages is empty — nothing was released.');
     return;
   }
 
@@ -51,35 +73,42 @@ async function run(): Promise<void> {
     resolveVia,
     commitToPullRequest: async (sha) => {
       const { data } = await octokit.rest.repos.listPullRequestsAssociatedWithCommit({
-        owner, repo, commit_sha: sha,
+        owner,
+        repo,
+        commit_sha: sha,
       });
       return data[0]?.number ?? null;
     },
   });
 
-  core.setOutput(
-    'released',
-    JSON.stringify(Object.fromEntries([...released].map(([pr, refs]) => [pr, [...refs].sort()]))),
-  );
+  const summary = [...released].map(([pr, refs]) => [pr, [...refs].toSorted()]);
+  setOutput('released', JSON.stringify(Object.fromEntries(summary)));
 
   if (released.size > 0) {
-    core.info('resolved:');
-    for (const [pr, refs] of released) core.info(`  PR #${pr} -> ${[...refs].sort().join(', ')}`);
+    info('resolved:');
+    for (const [pr, refs] of released) {
+      info(`  PR #${pr} -> ${[...refs].toSorted().join(', ')}`);
+    }
   }
 
   const api: CommentApi = {
     listCommentBodies: async (issue) => {
       const data = await octokit.paginate(octokit.rest.issues.listComments, {
-        owner, repo, issue_number: issue, per_page: 100,
+        owner,
+        repo,
+        issue_number: issue,
+        per_page: 100,
       });
-      return data.map((c) => c.body ?? '');
+      return data.map((entry) => entry.body ?? '');
     },
     createComment: async (issue, body) => {
       await octokit.rest.issues.createComment({ owner, repo, issue_number: issue, body });
     },
     closingIssues: async (pr) => {
       const res = await octokit.graphql<{
-        repository: { pullRequest: { closingIssuesReferences: { nodes: Array<{ number: number }> } } };
+        repository: {
+          pullRequest: { closingIssuesReferences: { nodes: Array<{ number: number }> } };
+        };
       }>(
         `query($owner:String!,$repo:String!,$pr:Int!){
            repository(owner:$owner,name:$repo){
@@ -88,7 +117,7 @@ async function run(): Promise<void> {
          }`,
         { owner, repo, pr },
       );
-      return res.repository.pullRequest.closingIssuesReferences.nodes.map((n) => n.number);
+      return res.repository.pullRequest.closingIssuesReferences.nodes.map((node) => node.number);
     },
   };
 
@@ -96,14 +125,16 @@ async function run(): Promise<void> {
     released,
     api,
     commentOn,
-    markerId: core.getInput('marker-id'),
-    dryRun: core.getBooleanInput('dry-run'),
-    linkReleases: core.getBooleanInput('link-releases'),
+    markerId: getInput('marker-id'),
+    dryRun: getBooleanInput('dry-run'),
+    linkReleases: getBooleanInput('link-releases'),
     serverUrl: process.env.GITHUB_SERVER_URL ?? 'https://github.com',
     repo: `${owner}/${repo}`,
   });
 }
 
-run().catch((error: unknown) => {
-  core.setFailed(error instanceof Error ? error.message : String(error));
-});
+try {
+  await run();
+} catch (error: unknown) {
+  setFailed(error instanceof Error ? error.message : String(error));
+}

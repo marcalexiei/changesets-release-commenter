@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+
 import { parseChangelogDiff } from './collect.js';
 
 describe('parseChangelogDiff', () => {
@@ -32,7 +33,9 @@ describe('parseChangelogDiff', () => {
   });
 
   it('handles a root-level changelog', () => {
-    const diff = ['+++ b/CHANGELOG.md', '+- [#12](https://github.com/o/r/pull/12) - feat'].join('\n');
+    const diff = ['+++ b/CHANGELOG.md', '+- [#12](https://github.com/o/r/pull/12) - feat'].join(
+      '\n',
+    );
     expect(parseChangelogDiff(diff)).toEqual([{ path: 'CHANGELOG.md', pr: 12 }]);
   });
 });

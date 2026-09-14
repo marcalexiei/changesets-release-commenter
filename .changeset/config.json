@@ -1,6 +1,9 @@
 {
   "$schema": "https://unpkg.com/@changesets/config@3.0.0/schema.json",
-  "changelog": ["@changesets/changelog-github", { "repo": "marcalexiei/changesets-release-commenter" }],
+  "changelog": [
+    "@changesets/changelog-github",
+    { "repo": "marcalexiei/changesets-release-commenter" }
+  ],
   "commit": false,
   "fixed": [],
   "linked": [],

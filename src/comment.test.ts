@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { markerFor, releaseUrl, renderBody, type CommentOptions } from './comment.js';
 
-const base = {
+import { markerFor, releaseUrl, renderBody } from './comment.js';
+import type { RenderOptions } from './comment.js';
+
+const base: RenderOptions = {
   markerId: 'changesets-release-commenter',
   serverUrl: 'https://github.com',
   repo: 'o/r',
   linkReleases: true,
-} as CommentOptions;
+};
 
 describe('releaseUrl', () => {
   it('encodes @ but leaves the scope slash literal, as GitHub does', () => {
@@ -31,6 +33,8 @@ describe('renderBody', () => {
   });
 
   it('falls back to plain code spans when links are off', () => {
-    expect(renderBody({ ...base, linkReleases: false }, 'x', ['pkg@1.0.0'])).toContain('- `pkg@1.0.0`');
+    expect(renderBody({ ...base, linkReleases: false }, 'x', ['pkg@1.0.0'])).toContain(
+      '- `pkg@1.0.0`',
+    );
   });
 });

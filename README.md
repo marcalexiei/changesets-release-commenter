@@ -25,7 +25,7 @@ who opened a `zod-mini` rule request wants the `zod-mini` version, not a list of
   per-package attribution either.
 
 This action reads the release commit's `CHANGELOG.md` diff instead. Changesets writes one changelog
-per package, so the diff *is* the per-package attribution, for free.
+per package, so the diff _is_ the per-package attribution, for free.
 
 ## Usage
 
@@ -52,21 +52,21 @@ The job needs `pull-requests: write` and `issues: write`.
 
 ## Inputs
 
-| Input                | Default                        | Description                                                        |
-| -------------------- | ------------------------------ | ------------------------------------------------------------------ |
-| `published-packages` | —, required                    | The `published-packages` output of `changesets/action`.             |
-| `github-token`       | `${{ github.token }}`          | Needs `pull-requests: write` and `issues: write`.                   |
-| `comment-on`         | `both`                         | `both`, `prs`, or `issues`.                                         |
-| `resolve-via`        | `auto`                         | `auto`, `changesets`, or `changelog`. See **How it works**.         |
-| `link-releases`      | `true`                         | Link each `package@version` to its GitHub release page.             |
-| `marker-id`          | `changesets-release-commenter` | Hidden marker used to avoid double-posting.                         |
-| `dry-run`            | `false`                        | Resolve and log everything, post nothing.                           |
+| Input                | Default                        | Description                                                 |
+| -------------------- | ------------------------------ | ----------------------------------------------------------- |
+| `published-packages` | —, required                    | The `published-packages` output of `changesets/action`.     |
+| `github-token`       | `${{ github.token }}`          | Needs `pull-requests: write` and `issues: write`.           |
+| `comment-on`         | `both`                         | `both`, `prs`, or `issues`.                                 |
+| `resolve-via`        | `auto`                         | `auto`, `changesets`, or `changelog`. See **How it works**. |
+| `link-releases`      | `true`                         | Link each `package@version` to its GitHub release page.     |
+| `marker-id`          | `changesets-release-commenter` | Hidden marker used to avoid double-posting.                 |
+| `dry-run`            | `false`                        | Resolve and log everything, post nothing.                   |
 
 ## Outputs
 
-| Output     | Description                                                          |
-| ---------- | -------------------------------------------------------------------- |
-| `released` | JSON, `{ "<pr>": ["name@version", …] }` — what each PR shipped in.    |
+| Output     | Description                                                        |
+| ---------- | ------------------------------------------------------------------ |
+| `released` | JSON, `{ "<pr>": ["name@version", …] }` — what each PR shipped in. |
 
 ## How it works
 

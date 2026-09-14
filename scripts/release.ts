@@ -3,19 +3,34 @@
 import { Buffer } from 'node:buffer';
 import fs from 'node:fs';
 import path from 'node:path';
+
 import { exec } from '@actions/exec';
+
+/** package.json's version, read without asserting a shape onto JSON.parse. */
+function readVersion(): string {
+  const parsed: unknown = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+  if (typeof parsed !== 'object' || parsed === null || !('version' in parsed)) {
+    throw new Error('package.json has no version');
+  }
+  if (typeof parsed.version !== 'string') {
+    throw new TypeError('package.json version is not a string');
+  }
+  return parsed.version;
+}
 
 process.chdir(path.join(import.meta.dirname, '..'));
 
-const pkgJson = JSON.parse(fs.readFileSync('package.json', 'utf8')) as { version: string };
-const tag = `v${pkgJson.version}`;
-const releaseLine = `v${pkgJson.version.split('.')[0]}`;
-const isPrerelease = pkgJson.version.includes('-');
+const version = readVersion();
+const tag = `v${version}`;
+const releaseLine = `v${version.split('.')[0]}`;
+const isPrerelease = version.includes('-');
 
 // The checkout persists no credentials, so authenticate the push with the app token — it is the
 // identity the branch/tag protection bypass is granted to.
 const githubToken = process.env.GITHUB_TOKEN;
-if (!githubToken) throw new Error('GITHUB_TOKEN is required');
+if (!githubToken) {
+  throw new Error('GITHUB_TOKEN is required');
+}
 const basic = Buffer.from(`x-access-token:${githubToken}`).toString('base64');
 const gitEnv = {
   ...process.env,
@@ -33,7 +48,11 @@ await exec('git', ['tag', tag, '-m', tag]);
 if (isPrerelease) {
   await exec('git', ['push', 'origin', `refs/tags/${tag}`], { env: gitEnv });
 } else {
-  await exec('git', ['push', '--force', '--follow-tags', 'origin', `HEAD:refs/heads/${releaseLine}`], {
-    env: gitEnv,
-  });
+  await exec(
+    'git',
+    ['push', '--force', '--follow-tags', 'origin', `HEAD:refs/heads/${releaseLine}`],
+    {
+      env: gitEnv,
+    },
+  );
 }
