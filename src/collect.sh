@@ -1,13 +1,22 @@
 #!/usr/bin/env bash
-# Resolve the release commit, then map each PR in its changelog diff to the packages it shipped in.
+# Resolve the release commit, then map each PR it shipped to the packages it shipped in.
+#
+# Two routes to the same answer:
+#   changesets — the .changeset/*.md files the release consumed. Their front matter names the
+#                packages, and the commit that added each file resolves to a PR. Works with any
+#                changelog generator.
+#   changelog  — `/pull/N` links in the CHANGELOG.md diff. Zero API calls, but needs a generator
+#                that writes them (@changesets/changelog-github).
 set -euo pipefail
 
 : "${PUBLISHED_PACKAGES:?required}"
+RESOLVE_VIA="${RESOLVE_VIA:-auto}"
 
 log() { printf '%s\n' "$*" >&2; }
+emit() { printf 'released=%s\n' "$1" >>"${GITHUB_OUTPUT:-/dev/stdout}"; }
 
-# The release commit is whatever a tag from this publish points at: never HEAD, which on a
-# workflow_run checkout follows the default branch and may have moved on.
+# Single-package repos tag `v<version>`; workspaces tag `<name>@<version>`. Never anchor on HEAD:
+# on a workflow_run checkout that follows the default branch, which may have moved past the release.
 resolve_release_sha() {
   local name version sha
   while read -r name version; do
@@ -22,6 +31,15 @@ resolve_release_sha() {
   return 1
 }
 
+# name -> "name@version", only for packages this run actually published
+published_ref() {
+  jq -er --arg n "$1" '.[] | select(.name == $n) | .name + "@" + .version' <<<"$PUBLISHED_PACKAGES"
+}
+
+add_pair() { # released_json, pr, name@version
+  jq -c --arg pr "$2" --arg pv "$3" '.[$pr] = ((.[$pr] // []) + [$pv] | unique)' <<<"$1"
+}
+
 git fetch --tags --quiet 2>/dev/null || true
 
 if ! release_sha=$(resolve_release_sha); then
@@ -30,12 +48,9 @@ if ! release_sha=$(resolve_release_sha); then
   exit 1
 fi
 
-emit_empty() { printf 'released={}\n' >>"${GITHUB_OUTPUT:-/dev/stdout}"; }
-
-# A root commit has nothing before it: that is a repository's first release, not an error.
 if [[ "$(git rev-list --parents -n1 "$release_sha" | wc -w)" -le 1 ]]; then
-  log "Release commit is the repository root — no earlier changelog to diff against."
-  emit_empty
+  log "Release commit is the repository root — no earlier state to compare against."
+  emit '{}'
   exit 0
 fi
 
@@ -48,44 +63,99 @@ if ! git cat-file -e "${release_sha}~1" 2>/dev/null; then
   exit 1
 fi
 
-# `+++ b/<dir>/CHANGELOG.md` headers attribute each `/pull/N` line to a package.
-# Dependency-bump lines carry only commit links, never /pull/, so they exclude themselves.
-pairs=$(git diff "${release_sha}~1" "${release_sha}" -- '*CHANGELOG.md' | awk '
-  /^\+\+\+ b\// { path = substr($2, 3); next }
-  /^\+/ && /\/pull\/[0-9]+/ {
-    line = $0
-    while (match(line, /\/pull\/[0-9]+/)) {
-      print path "\t" substr(line, RSTART + 6, RLENGTH - 6)
-      line = substr(line, RSTART + RLENGTH)
-    }
-  }
-' | sort -u)
+collect_via_changesets() {
+  local released='{}' file content names sha pr ref found=0
+  while read -r file; do
+    [[ -z "$file" ]] && continue
+    content=$(git show "${release_sha}~1:${file}" 2>/dev/null) || continue
+    # front matter: everything between the first and second `---`
+    names=$(awk 'NR==1 && /^---[[:space:]]*$/ {f=1; next} f && /^---[[:space:]]*$/ {exit} f {print}' <<<"$content" \
+      | sed -E "s/^[[:space:]]*[\"']?([^\"':]+)[\"']?[[:space:]]*:[[:space:]]*(patch|minor|major)[[:space:]]*$/\1/" \
+      | grep -v '^[[:space:]]*$' || true)
+    [[ -z "$names" ]] && { log "  ${file}: no packages in front matter"; continue; }
 
-if [[ -z "$pairs" ]]; then
-  log "No PR links in the changelog diff — nothing to comment on."
-  emit_empty
+    sha=$(git log --diff-filter=A --format=%H -- "$file" | head -1)
+    [[ -z "$sha" ]] && { log "  ${file}: no commit added it"; continue; }
+    # gh prints its error body to stdout, so a failed call must not be read as a PR number.
+    if ! pr=$(gh api "repos/{owner}/{repo}/commits/${sha}/pulls" --jq '.[0].number' 2>/dev/null); then
+      log "  ${file}: commit->PR lookup FAILED for ${sha:0:8}"
+      continue
+    fi
+    if [[ ! "$pr" =~ ^[0-9]+$ ]]; then
+      log "  ${file}: ${sha:0:8} has no associated PR"
+      continue
+    fi
+
+    while read -r name; do
+      if ref=$(published_ref "$name"); then
+        released=$(add_pair "$released" "$pr" "$ref")
+        found=1
+      else
+        log "  ${file}: ${name} not in published-packages"
+      fi
+    done <<<"$names"
+  done < <(git diff --diff-filter=D --name-only "${release_sha}~1" "$release_sha" -- '.changeset/*.md' \
+    | grep -v '/README\.md$' || true)
+
+  [[ "$found" -eq 1 ]] && printf '%s' "$released"
+}
+
+collect_via_changelog() {
+  local released='{}' path pr dir pkg_json name ref found=0
+  while IFS=$'\t' read -r path pr; do
+    [[ -z "$path" ]] && continue
+    dir=$(dirname "$path")
+    pkg_json="package.json"
+    [[ "$dir" != "." ]] && pkg_json="${dir}/package.json"
+    name=$(git show "${release_sha}:${pkg_json}" 2>/dev/null | jq -er '.name') || continue
+    if ref=$(published_ref "$name"); then
+      released=$(add_pair "$released" "$pr" "$ref")
+      found=1
+    fi
+  done < <(git diff "${release_sha}~1" "$release_sha" -- '*CHANGELOG.md' | awk '
+    /^\+\+\+ b\// { path = substr($2, 3); next }
+    /^\+/ && /\/pull\/[0-9]+/ {
+      line = $0
+      while (match(line, /\/pull\/[0-9]+/)) {
+        print path "\t" substr(line, RSTART + 6, RLENGTH - 6)
+        line = substr(line, RSTART + RLENGTH)
+      }
+    }
+  ' | sort -u)
+
+  [[ "$found" -eq 1 ]] && printf '%s' "$released"
+}
+
+released=''
+case "$RESOLVE_VIA" in
+  changesets)
+    log "Resolving via consumed changeset files:"
+    released=$(collect_via_changesets) || true
+    ;;
+  changelog)
+    log "Resolving via changelog PR links:"
+    released=$(collect_via_changelog) || true
+    ;;
+  auto)
+    log "Resolving via consumed changeset files:"
+    released=$(collect_via_changesets) || true
+    if [[ -z "$released" ]]; then
+      log "No changesets resolved — falling back to changelog PR links:"
+      released=$(collect_via_changelog) || true
+    fi
+    ;;
+  *)
+    log "ERROR: resolve-via must be auto, changesets or changelog (got '${RESOLVE_VIA}')."
+    exit 1
+    ;;
+esac
+
+if [[ -z "$released" ]]; then
+  log "Nothing resolved — no PRs to comment on."
+  emit '{}'
   exit 0
 fi
 
-# Resolve each changelog path to its package name as of the release commit, then keep only
-# packages this run actually published and attach their versions.
-released='{}'
-while IFS=$'\t' read -r path pr; do
-  pkg_json="$(dirname "$path")/package.json"
-  if ! name=$(git show "${release_sha}:${pkg_json}" 2>/dev/null | jq -er '.name'); then
-    log "skip ${path}: no package name at ${pkg_json}"
-    continue
-  fi
-  if ! version=$(jq -er --arg n "$name" '.[] | select(.name == $n) | .version' <<<"$PUBLISHED_PACKAGES"); then
-    log "skip ${name}: not in published-packages"
-    continue
-  fi
-  released=$(jq -c --arg pr "$pr" --arg pv "${name}@${version}" '
-    .[$pr] = ((.[$pr] // []) + [$pv] | unique)
-  ' <<<"$released")
-done <<<"$pairs"
-
 log "resolved:"
 jq -r 'to_entries[] | "  PR #\(.key) -> \(.value | join(", "))"' <<<"$released" >&2
-
-printf 'released=%s\n' "$released" >>"${GITHUB_OUTPUT:-/dev/stdout}"
+emit "$released"
