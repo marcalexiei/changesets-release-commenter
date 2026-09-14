@@ -43,7 +43,7 @@ per package, so the diff *is* the per-package attribution, for free.
 - name: Comment on shipped PRs and issues
   if: steps.changesets.outputs.published == 'true'
   continue-on-error: true # packages are already published; a failed comment must not fail the release
-  uses: marcalexiei/changesets-release-commenter@v1
+  uses: marcalexiei/changesets-release-commenter@v0
   with:
     published-packages: ${{ steps.changesets.outputs.published-packages }}
 ```
