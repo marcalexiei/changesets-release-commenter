@@ -5,6 +5,9 @@ import { parseChangesetFile } from '@changesets/parse';
 import { git, gitOrNull, gitSucceeds } from './git.js';
 import type { PublishedPackage, ReleaseEntry, Released, ResolveVia } from './types.js';
 
+/** How far back to look for the version commit when the tag names a later one. */
+const VERSION_SEARCH_DEPTH = 5;
+
 interface CollectOptions {
   cwd: string;
   published: ReadonlyArray<PublishedPackage>;
@@ -21,7 +24,8 @@ type RefFor = (name: string) => string | null;
 /** Everything a resolution pass needs, threaded through instead of repeated as parameters. */
 interface Pass {
   options: CollectOptions;
-  releaseSha: string;
+  /** The commit that consumed the changesets, which is not always the tagged one. */
+  versionSha: string;
   refFor: RefFor;
 }
 
@@ -106,11 +110,11 @@ async function resolveChangeset(
   pass: Pass,
   file: string,
 ): Promise<{ pr: number; names: ReadonlyArray<string> } | null> {
-  const { options, releaseSha } = pass;
+  const { options, versionSha } = pass;
   const { cwd } = options;
-  const contents = await gitOrNull(['show', `${releaseSha}~1:${file}`], cwd);
+  const contents = await gitOrNull(['show', `${versionSha}~1:${file}`], cwd);
   if (contents === null) {
-    info(`  ${file}: unreadable at ${releaseSha}~1`);
+    info(`  ${file}: unreadable at ${versionSha}~1`);
     return null;
   }
 
@@ -120,7 +124,7 @@ async function resolveChangeset(
     return null;
   }
 
-  const sha = await commitThatAddedFile(cwd, `${releaseSha}~1`, file);
+  const sha = await commitThatAddedFile(cwd, `${versionSha}~1`, file);
   if (sha === null) {
     info(`  ${file}: no commit added it`);
     return null;
@@ -135,30 +139,59 @@ async function resolveChangeset(
   return { pr, names };
 }
 
+/** The `.changeset/*.md` files a commit consumed, ignoring the folder's own README. */
+async function deletedChangesets(cwd: string, sha: string): Promise<Array<string>> {
+  const diff = await git(
+    ['diff', '--diff-filter=D', '--name-only', `${sha}~1`, sha, '--', '.changeset/*.md'],
+    cwd,
+  );
+  return diff
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '' && !line.endsWith('/README.md'));
+}
+
+/**
+ * The commit that consumed the changesets, which the tag usually names directly.
+ *
+ * A repository that ships a built artifact does not: it commits the build on top of the version
+ * commit and tags that child, so the tag names the build and an ancestor consumed the changesets.
+ * Nothing between two releases deletes changeset files, so the nearest ancestor that does is this
+ * release's, and the search stops there.
+ */
+async function resolveVersionSha(cwd: string, releaseSha: string): Promise<string> {
+  const walk = await git(
+    ['rev-list', '--first-parent', `--max-count=${String(VERSION_SEARCH_DEPTH)}`, releaseSha],
+    cwd,
+  );
+
+  for (const sha of walk.split('\n').filter((line) => line !== '')) {
+    // oxlint-disable-next-line no-await-in-loop
+    if (!(await gitSucceeds(['cat-file', '-e', `${sha}~1`], cwd))) {
+      break;
+    }
+    // oxlint-disable-next-line no-await-in-loop
+    const consumed = await deletedChangesets(cwd, sha);
+    if (consumed.length > 0) {
+      if (sha !== releaseSha) {
+        info(`Version commit ${sha}: the tag names a commit built on top of it`);
+      }
+      return sha;
+    }
+  }
+
+  return releaseSha;
+}
+
 /**
  * Route A: the `.changeset/*.md` files this release consumed. They are deleted by the release
  * commit but readable at its parent, and their front matter names the packages exactly as the
  * author declared them. Works with any changelog generator.
  */
 async function collectViaChangesets(pass: Pass): Promise<Released> {
-  const { options, releaseSha, refFor } = pass;
+  const { options, versionSha, refFor } = pass;
   const released: Released = new Map();
-  const diff = await git(
-    [
-      'diff',
-      '--diff-filter=D',
-      '--name-only',
-      `${releaseSha}~1`,
-      releaseSha,
-      '--',
-      '.changeset/*.md',
-    ],
-    options.cwd,
-  );
-  const deleted = diff
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line !== '' && !line.endsWith('/README.md'));
+  const deleted = await deletedChangesets(options.cwd, versionSha);
 
   for (const file of deleted) {
     // One API call per changeset, serialized so a large release does not trip rate limits.
@@ -242,10 +275,10 @@ function packageNameOf(raw: string): string | null {
 
 /** The published `name@version` of the package owning a changelog path, or null. */
 async function refForChangelog(pass: Pass, path: string): Promise<string | null> {
-  const { options, releaseSha, refFor } = pass;
+  const { options, versionSha, refFor } = pass;
   const dir = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '.';
   const pkgJson = dir === '.' ? 'package.json' : `${dir}/package.json`;
-  const raw = await gitOrNull(['show', `${releaseSha}:${pkgJson}`], options.cwd);
+  const raw = await gitOrNull(['show', `${versionSha}:${pkgJson}`], options.cwd);
   const name = raw === null ? null : packageNameOf(raw);
   return name === null ? null : refFor(name);
 }
@@ -255,9 +288,9 @@ async function refForChangelog(pass: Pass, path: string): Promise<string | null>
  * changeset on a shared package still tells the reader which consumer versions carry it.
  */
 async function collectDependents(pass: Pass, released: Released): Promise<void> {
-  const { options, releaseSha } = pass;
+  const { options, versionSha } = pass;
   const diff = await git(
-    ['diff', `${releaseSha}~1`, releaseSha, '--', '*CHANGELOG.md'],
+    ['diff', `${versionSha}~1`, versionSha, '--', '*CHANGELOG.md'],
     options.cwd,
   );
   const bumps = parseDependencyBumps(diff);
@@ -287,10 +320,10 @@ async function collectDependents(pass: Pass, released: Released): Promise<void> 
  * writes them. Dependency-bump lines carry only commit links, so transitive bumps self-exclude.
  */
 async function collectViaChangelog(pass: Pass): Promise<Released> {
-  const { options, releaseSha } = pass;
+  const { options, versionSha } = pass;
   const { cwd } = options;
   const released: Released = new Map();
-  const diff = await git(['diff', `${releaseSha}~1`, releaseSha, '--', '*CHANGELOG.md'], cwd);
+  const diff = await git(['diff', `${versionSha}~1`, versionSha, '--', '*CHANGELOG.md'], cwd);
 
   for (const { path, pr } of parseChangelogDiff(diff)) {
     // oxlint-disable-next-line no-await-in-loop
@@ -343,7 +376,7 @@ async function collect(options: CollectOptions): Promise<Released> {
     throw new Error(`${releaseSha}~1 is unreachable. Use fetch-depth: 0.`);
   }
 
-  const pass: Pass = { options, releaseSha, refFor };
+  const pass: Pass = { options, versionSha: await resolveVersionSha(cwd, releaseSha), refFor };
   const released = await collectDirect(pass);
 
   // Dependents always come from the changelog: only it records why a package was republished.
