@@ -27,7 +27,8 @@ const gitEnv = {
 await exec('git', ['checkout', '--detach']);
 await exec('git', ['add', '--force', 'dist']);
 await exec('git', ['commit', '-m', tag]);
-await exec('git', ['tag', tag]);
+// Annotated, not lightweight: `git push --follow-tags` below only pushes annotated tags.
+await exec('git', ['tag', tag, '-m', tag]);
 
 if (isPrerelease) {
   await exec('git', ['push', 'origin', `refs/tags/${tag}`], { env: gitEnv });
