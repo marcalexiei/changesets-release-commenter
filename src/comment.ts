@@ -17,9 +17,14 @@ interface CommentOptions {
   linkReleases: boolean;
   serverUrl: string;
   repo: string;
+  /** `<name>@<version>` -> the tag the repository actually carries for it. */
+  tags: ReadonlyMap<string, string>;
 }
 
-type RenderOptions = Pick<CommentOptions, 'markerId' | 'serverUrl' | 'repo' | 'linkReleases'>;
+type RenderOptions = Pick<
+  CommentOptions,
+  'markerId' | 'serverUrl' | 'repo' | 'linkReleases' | 'tags'
+>;
 
 interface PostRequest {
   number: number;
@@ -41,12 +46,16 @@ function releaseUrl(serverUrl: string, repo: string, ref: string): string {
   return `${serverUrl}/${repo}/releases/tag/${ref.replaceAll('@', '%40')}`;
 }
 
+/**
+ * The label names the package, the link points at the tag. They differ in a single-package
+ * repository, which is released as `<name>@<version>` but tagged `v<version>`.
+ */
 function renderList(options: RenderOptions, refs: ReadonlyArray<string>): string {
   return refs
     .toSorted()
     .map((ref) =>
       options.linkReleases
-        ? `- [\`${ref}\`](${releaseUrl(options.serverUrl, options.repo, ref)})`
+        ? `- [\`${ref}\`](${releaseUrl(options.serverUrl, options.repo, options.tags.get(ref) ?? ref)})`
         : `- \`${ref}\``,
     )
     .join('\n');

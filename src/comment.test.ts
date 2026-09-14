@@ -8,6 +8,7 @@ const base: RenderOptions = {
   serverUrl: 'https://github.com',
   repo: 'o/r',
   linkReleases: true,
+  tags: new Map(),
 };
 
 describe('releaseUrl', () => {
@@ -35,6 +36,15 @@ describe('renderBody', () => {
       '🚀 Released in:\n\n- [`pkg@1.0.0`](https://github.com/o/r/releases/tag/pkg%401.0.0)\n\n' +
         '<!-- changesets-release-commenter:pkg@1.0.0 -->',
     );
+  });
+
+  it('links the tag the repository carries, which a single-package repo spells differently', () => {
+    expect(
+      renderBody({ ...base, tags: new Map([['pkg@1.0.0', 'v1.0.0']]) }, '🚀 Released in:', {
+        direct: new Set(['pkg@1.0.0']),
+        dependents: new Set(),
+      }),
+    ).toContain('- [`pkg@1.0.0`](https://github.com/o/r/releases/tag/v1.0.0)');
   });
 
   it('falls back to plain code spans when links are off', () => {

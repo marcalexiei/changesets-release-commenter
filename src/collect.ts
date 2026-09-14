@@ -34,39 +34,57 @@ interface ChangelogEntry {
   pr: number;
 }
 
+/** The two shapes a release tag takes: workspaces tag `<name>@<version>`, single packages `v<version>`. */
+function tagCandidates({ name, version }: PublishedPackage): Array<string> {
+  return [`${name}@${version}`, `v${version}`];
+}
+
+/**
+ * The tag each published package actually carries, keyed by `<name>@<version>` — which is how
+ * the rest of the run names a package, and not always how the repository tags it.
+ */
+async function resolveTags(
+  cwd: string,
+  published: ReadonlyArray<PublishedPackage>,
+): Promise<Map<string, string>> {
+  // changesets/action pushes the release tags; they are not necessarily in the local clone.
+  await gitOrNull(['fetch', '--tags', '--quiet'], cwd);
+  const tags = await getAllTags(cwd);
+
+  const resolved = new Map<string, string>();
+  for (const pkg of published) {
+    const tag = tagCandidates(pkg).find((candidate) => tags.has(candidate));
+    if (tag !== undefined) {
+      resolved.set(`${pkg.name}@${pkg.version}`, tag);
+    }
+  }
+  return resolved;
+}
+
 /**
  * The release commit is whatever a tag from this publish points at — never HEAD, which on a
  * workflow_run checkout follows the default branch and may have moved past the release.
- * Workspaces tag `<name>@<version>`; single-package repos tag `v<version>`.
  */
 async function resolveReleaseSha(
   cwd: string,
   published: ReadonlyArray<PublishedPackage>,
+  tags: ReadonlyMap<string, string>,
 ): Promise<string> {
-  // changesets/action pushes the release tags; they are not necessarily in the local clone.
-  await gitOrNull(['fetch', '--tags', '--quiet'], cwd);
-
-  const tags = await getAllTags(cwd);
-  const candidates = published.flatMap(({ name, version }) => [
-    `${name}@${version}`,
-    `v${version}`,
-  ]);
-
-  for (const tag of candidates) {
-    if (tags.has(tag)) {
-      // oxlint-disable-next-line no-await-in-loop
-      const sha = await gitOrNull(['rev-list', '-n1', tag], cwd);
-      if (sha !== null) {
-        info(`Release commit ${sha} (from tag ${tag})`);
-        return sha;
-      }
+  for (const tag of tags.values()) {
+    // oxlint-disable-next-line no-await-in-loop
+    const sha = await gitOrNull(['rev-list', '-n1', tag], cwd);
+    if (sha !== null) {
+      info(`Release commit ${sha} (from tag ${tag})`);
+      return sha;
     }
   }
 
-  const known = [...tags].slice(0, 10).join(', ');
+  const all = await getAllTags(cwd);
+  const known = [...all].slice(0, 10).join(', ');
   throw new Error(
-    `No tag from published-packages resolves to a commit. Tried: ${candidates.join(', ')}. ` +
-      `Repository has ${String(tags.size)} tag(s): ${known}`,
+    `No tag from published-packages resolves to a commit. ` +
+      `Tried: ${published.flatMap((pkg) => tagCandidates(pkg)).join(', ')}. ` +
+      `Repository has ${String(all.size)} tag(s): ${known}`,
   );
 }
 
@@ -358,7 +376,7 @@ async function collect(options: CollectOptions): Promise<Released> {
   const versions = new Map(published.map((pkg) => [pkg.name, `${pkg.name}@${pkg.version}`]));
   const refFor: RefFor = (name) => versions.get(name) ?? null;
 
-  const releaseSha = await resolveReleaseSha(cwd, published);
+  const releaseSha = await resolveReleaseSha(cwd, published, await resolveTags(cwd, published));
 
   const revList = await git(['rev-list', '--parents', '-n1', releaseSha], cwd);
   if (revList.split(/\s+/u).length <= 1) {
@@ -387,5 +405,5 @@ async function collect(options: CollectOptions): Promise<Released> {
   return released;
 }
 
-export { collect, parseChangelogDiff, parseDependencyBumps, resolveReleaseSha };
+export { collect, parseChangelogDiff, parseDependencyBumps, resolveReleaseSha, resolveTags };
 export type { CollectOptions };
