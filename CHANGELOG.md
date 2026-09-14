@@ -1,5 +1,11 @@
 # changesets-release-commenter
 
+## 0.1.1
+
+### Patch Changes
+
+- [`9c0321f`](https://github.com/marcalexiei/changesets-release-commenter/commit/9c0321f3b2ba38d1e07338d6e05d22d7e17360ce) Thanks [@marcalexiei](https://github.com/marcalexiei)! - fix: fetch tags before resolving the release commit
+
 ## 0.1.0
 
 ### Minor Changes
