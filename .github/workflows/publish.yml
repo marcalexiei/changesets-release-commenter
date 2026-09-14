@@ -14,26 +14,40 @@ jobs:
   publish:
     name: Version or release
     runs-on: ubuntu-latest
+
+    environment: release
+
     permissions:
-      contents: write # release commits, tags, and the major release line
-      pull-requests: write # the version PR
+      contents: read # the app token does the writing
+
     steps:
+      - name: Setup release helper
+        id: release-helper
+        uses: marcalexiei/github-actions/setup-github-app-user-bot@e3b04865510c657477cc722854b31a3b74c72c09 # v2.2.0
+        with:
+          app-id: ${{ vars.RELEASE_HELPER_APP_ID }}
+          private-key: ${{ secrets.RELEASE_HELPER_PRIVATE_KEY }}
+
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # release.ts force-moves the major branch
+          fetch-depth: 0 # release.ts force-moves the major release line
+          persist-credentials: false # release.ts authenticates with the app token instead
+
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
+
       - run: npm ci
       - run: npm run build
 
       - name: Create version PR or release
         uses: changesets/action@v2
         with:
+          github-token: ${{ steps.release-helper.outputs.token }}
           version-script: 'npm run bump'
           publish-script: 'npm run release'
           commit-message: 'chore: version'
           pr-title: 'chore: version'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.release-helper.outputs.token }}
