@@ -1,3 +1,6 @@
 node_modules
 dist/
 *.log
+
+# working notes, never committed
+MARKETPLACE-LISTING.md
