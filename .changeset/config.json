@@ -2,7 +2,10 @@
   "$schema": "https://unpkg.com/@changesets/config@3.0.0/schema.json",
   "changelog": [
     "@changesets/changelog-github",
-    { "repo": "marcalexiei/changesets-release-commenter" }
+    {
+      "repo": "marcalexiei/changesets-release-commenter",
+      "disableThanks": true
+    }
   ],
   "commit": false,
   "fixed": [],
@@ -11,5 +14,8 @@
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
   "ignore": [],
-  "privatePackages": { "version": true, "tag": false }
+  "privatePackages": {
+    "version": true,
+    "tag": false
+  }
 }
