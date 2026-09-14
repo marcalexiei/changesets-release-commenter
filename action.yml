@@ -26,6 +26,10 @@ inputs:
     description: 'Hidden marker used to avoid double-posting. Must differ from other comment ids on the thread.'
     required: false
     default: 'changesets-release-commenter'
+  include-dependents:
+    description: 'Also report packages republished only because they depend on a directly-changed one.'
+    required: false
+    default: 'true'
   link-releases:
     description: 'Link each package@version to its GitHub release page. Set false if releases are not created.'
     required: false

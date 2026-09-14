@@ -1,6 +1,6 @@
 import { info } from '@actions/core';
 
-import type { Released } from './types.js';
+import type { ReleaseEntry, Released } from './types.js';
 
 interface CommentApi {
   listCommentBodies: (issue: number) => Promise<Array<string>>;
@@ -41,14 +41,30 @@ function releaseUrl(serverUrl: string, repo: string, ref: string): string {
   return `${serverUrl}/${repo}/releases/tag/${ref.replaceAll('@', '%40')}`;
 }
 
-function renderBody(options: RenderOptions, lead: string, refs: ReadonlyArray<string>): string {
-  const sorted = refs.toSorted();
-  const items = sorted.map((ref) =>
-    options.linkReleases
-      ? `- [\`${ref}\`](${releaseUrl(options.serverUrl, options.repo, ref)})`
-      : `- \`${ref}\``,
-  );
-  return `${lead}\n\n${items.join('\n')}\n\n${markerFor(options.markerId, sorted)}`;
+function renderList(options: RenderOptions, refs: ReadonlyArray<string>): string {
+  return refs
+    .toSorted()
+    .map((ref) =>
+      options.linkReleases
+        ? `- [\`${ref}\`](${releaseUrl(options.serverUrl, options.repo, ref)})`
+        : `- \`${ref}\``,
+    )
+    .join('\n');
+}
+
+/**
+ * Direct and dependent packages are listed separately: the direct ones are what the change *is*,
+ * the dependents are how it reaches people. Merging them would overstate what changed in each.
+ */
+function renderBody(options: RenderOptions, lead: string, entry: ReleaseEntry): string {
+  const direct = [...entry.direct];
+  const dependents = [...entry.dependents];
+  const sections = [`${lead}\n\n${renderList(options, direct)}`];
+  if (dependents.length > 0) {
+    sections.push(`Also republished with this change:\n\n${renderList(options, dependents)}`);
+  }
+  const marker = markerFor(options.markerId, [...direct, ...dependents]);
+  return `${sections.join('\n\n')}\n\n${marker}`;
 }
 
 async function post(options: CommentOptions, request: PostRequest): Promise<void> {
@@ -67,29 +83,25 @@ async function post(options: CommentOptions, request: PostRequest): Promise<void
 
 async function commentOnPullRequests(options: CommentOptions): Promise<void> {
   info('Commenting on PRs:');
-  for (const [pr, refs] of [...options.released].toSorted((one, two) => one[0] - two[0])) {
-    const list = [...refs];
-    const body = renderBody(options, '🚀 This pull request has been released in:', list);
+  for (const [pr, entry] of [...options.released].toSorted((one, two) => one[0] - two[0])) {
+    const body = renderBody(options, '🚀 This pull request has been released in:', entry);
+    const marker = markerFor(options.markerId, [...entry.direct, ...entry.dependents]);
     // Serialized on purpose: parallel posting would trip secondary rate limits.
     // oxlint-disable-next-line no-await-in-loop
-    await post(options, {
-      number: pr,
-      body,
-      marker: markerFor(options.markerId, list),
-      kind: 'PR',
-    });
+    await post(options, { number: pr, body, marker, kind: 'PR' });
   }
 }
 
 interface IssueEntry {
-  refs: Set<string>;
+  direct: Set<string>;
+  dependents: Set<string>;
   prs: Set<number>;
 }
 
 /** issue -> the packages and PRs that closed it, unioned across every PR in the release. */
 async function groupIssues(options: CommentOptions): Promise<Map<number, IssueEntry>> {
   const issues = new Map<number, IssueEntry>();
-  for (const [pr, refs] of options.released) {
+  for (const [pr, released] of options.released) {
     // oxlint-disable-next-line no-await-in-loop
     const closed = await options.api.closingIssues(pr);
     if (closed.length === 0) {
@@ -97,9 +109,16 @@ async function groupIssues(options: CommentOptions): Promise<Map<number, IssueEn
     }
     for (const issue of closed) {
       info(`  PR #${pr} closes issue #${issue}`);
-      const entry = issues.get(issue) ?? { refs: new Set<string>(), prs: new Set<number>() };
-      for (const ref of refs) {
-        entry.refs.add(ref);
+      const entry = issues.get(issue) ?? {
+        direct: new Set<string>(),
+        dependents: new Set<string>(),
+        prs: new Set<number>(),
+      };
+      for (const ref of released.direct) {
+        entry.direct.add(ref);
+      }
+      for (const ref of released.dependents) {
+        entry.dependents.add(ref);
       }
       entry.prs.add(pr);
       issues.set(issue, entry);
@@ -115,19 +134,14 @@ async function commentOnIssues(options: CommentOptions): Promise<void> {
     info('Commenting on issues:');
   }
   for (const [issue, entry] of [...issues].toSorted((one, two) => one[0] - two[0])) {
-    const list = [...entry.refs];
     const by = [...entry.prs]
       .toSorted((one, two) => one - two)
       .map((pr) => `#${pr}`)
       .join(', ');
-    const body = renderBody(options, `🚀 Fixed by ${by}, released in:`, list);
+    const body = renderBody(options, `🚀 Fixed by ${by}, released in:`, entry);
+    const marker = markerFor(options.markerId, [...entry.direct, ...entry.dependents]);
     // oxlint-disable-next-line no-await-in-loop
-    await post(options, {
-      number: issue,
-      body,
-      marker: markerFor(options.markerId, list),
-      kind: 'issue',
-    });
+    await post(options, { number: issue, body, marker, kind: 'issue' });
   }
 }
 

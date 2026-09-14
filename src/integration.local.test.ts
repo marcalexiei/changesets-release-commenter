@@ -29,8 +29,16 @@ const commitToPullRequest = (sha: string): Promise<number | null> => {
 describe.runIf(existsSync(cwd))('collect against the playground', () => {
   for (const resolveVia of ['changesets', 'changelog'] as const) {
     it(`resolves the same map via ${resolveVia}`, async () => {
-      const released = await collect({ cwd, published, resolveVia, commitToPullRequest });
-      const obj = Object.fromEntries([...released].map(([pr, refs]) => [pr, [...refs].toSorted()]));
+      const released = await collect({
+        cwd,
+        published,
+        resolveVia,
+        includeDependents: false,
+        commitToPullRequest,
+      });
+      const obj = Object.fromEntries(
+        [...released].map(([pr, entry]) => [pr, [...entry.direct].toSorted()]),
+      );
       expect(obj).toEqual(expected);
     }, 60_000);
   }
