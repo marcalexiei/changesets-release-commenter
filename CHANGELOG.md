@@ -1,5 +1,11 @@
 # changesets-release-commenter
 
+## 0.2.0
+
+### Minor Changes
+
+- [#9](https://github.com/marcalexiei/changesets-release-commenter/pull/9) [`61ed9a1`](https://github.com/marcalexiei/changesets-release-commenter/commit/61ed9a1edf5b8ce601e18bc853c35dfaf644e3ac) - feat: also report packages republished because they depend on a changed one
+
 ## 0.1.4
 
 ### Patch Changes
