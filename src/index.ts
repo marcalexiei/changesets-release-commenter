@@ -134,6 +134,7 @@ async function run(): Promise<void> {
     markerId: getInput('marker-id'),
     dryRun: getBooleanInput('dry-run'),
     linkReleases: getBooleanInput('link-releases'),
+    footer: getBooleanInput('footer'),
     serverUrl: process.env.GITHUB_SERVER_URL ?? 'https://github.com',
     repo: `${owner}/${repo}`,
     tags: await resolveTags(cwd, published),
