@@ -18,6 +18,22 @@ missing one means the PR goes unmentioned in its own comments.
 pnpm changeset
 ```
 
+Write the body as a conventional-commit title, then a short description only if the title leaves
+something unsaid:
+
+```markdown
+---
+'changesets-release-commenter': minor
+---
+
+feat: credit the action in a comment footer
+
+Sits before the hidden marker, so a thread carrying a comment from an earlier version still
+deduplicates.
+```
+
+The title becomes the CHANGELOG entry, so it reads best in the same shape as the commit log.
+
 ## Releasing
 
 `dist/` is gitignored and never lives on `main`. A release commits it on a detached commit, tags
