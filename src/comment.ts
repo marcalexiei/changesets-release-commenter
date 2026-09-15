@@ -15,6 +15,7 @@ interface CommentOptions {
   markerId: string;
   dryRun: boolean;
   linkReleases: boolean;
+  footer: boolean;
   serverUrl: string;
   repo: string;
   /** `<name>@<version>` -> the tag the repository actually carries for it. */
@@ -23,7 +24,7 @@ interface CommentOptions {
 
 type RenderOptions = Pick<
   CommentOptions,
-  'markerId' | 'serverUrl' | 'repo' | 'linkReleases' | 'tags'
+  'markerId' | 'serverUrl' | 'repo' | 'linkReleases' | 'footer' | 'tags'
 >;
 
 interface PostRequest {
@@ -32,6 +33,10 @@ interface PostRequest {
   marker: string;
   kind: string;
 }
+
+/** Credits the action, so a reader can tell what posted the comment and turn it off. */
+const FOOTER =
+  '<sub>🤖 Posted by [changesets-release-commenter](https://github.com/marcalexiei/changesets-release-commenter)</sub>';
 
 /** The marker carries the exact package set, so re-running the same release is a no-op. */
 function markerFor(markerId: string, refs: ReadonlyArray<string>): string {
@@ -71,6 +76,9 @@ function renderBody(options: RenderOptions, lead: string, entry: ReleaseEntry): 
   const sections = [`${lead}\n\n${renderList(options, direct)}`];
   if (dependents.length > 0) {
     sections.push(`Also republished with this change:\n\n${renderList(options, dependents)}`);
+  }
+  if (options.footer) {
+    sections.push(FOOTER);
   }
   const marker = markerFor(options.markerId, [...direct, ...dependents]);
   return `${sections.join('\n\n')}\n\n${marker}`;
@@ -167,5 +175,5 @@ async function comment(options: CommentOptions): Promise<void> {
   }
 }
 
-export { comment, markerFor, releaseUrl, renderBody };
+export { comment, FOOTER, markerFor, releaseUrl, renderBody };
 export type { CommentApi, CommentOptions, RenderOptions };

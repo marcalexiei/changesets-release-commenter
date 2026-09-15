@@ -34,6 +34,10 @@ inputs:
     description: 'Link each package@version to its GitHub release page. Set false if releases are not created.'
     required: false
     default: 'true'
+  footer:
+    description: 'Add a line crediting this action at the end of each comment.'
+    required: false
+    default: 'true'
   dry-run:
     description: 'Resolve and log everything, but post nothing.'
     required: false

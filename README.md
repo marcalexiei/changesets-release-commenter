@@ -102,6 +102,7 @@ dot notation parses as a subtraction.
 | `resolve-via`        | `auto`                         | `auto`, `changesets`, or `changelog`. See **How it works**.            |
 | `include-dependents` | `true`                         | Also report packages republished because they depend on a changed one. |
 | `link-releases`      | `true`                         | Link each `package@version` to its GitHub release page.                |
+| `footer`             | `true`                         | Add a line crediting this action at the end of each comment.           |
 | `marker-id`          | `changesets-release-commenter` | Hidden marker used to avoid double-posting.                            |
 | `dry-run`            | `false`                        | Resolve and log everything, post nothing.                              |
 
