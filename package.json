@@ -16,9 +16,9 @@
     "release": "node ./scripts/release.ts"
   },
   "dependencies": {
-    "@actions/core": "^1.11.1",
-    "@actions/exec": "^1.1.1",
-    "@actions/github": "^6.0.1",
+    "@actions/core": "^3.0.1",
+    "@actions/exec": "^3.0.0",
+    "@actions/github": "^9.1.1",
     "@changesets/git": "^4.0.0",
     "@changesets/parse": "^1.0.0",
     "@manypkg/get-packages": "^3.1.0"
