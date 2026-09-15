@@ -4,20 +4,22 @@ Comments on the pull requests a [Changesets](https://github.com/changesets/chang
 shipped, and on the issues those PRs close — naming **which package at which version** each one
 shipped in, each version linked to its GitHub release.
 
-> 🚀 Fixed by #433, released in:
+> 🚀 Fixed by #42, released in:
 >
-> - [`eslint-plugin-zod-mini@1.9.1`](https://github.com/marcalexiei/eslint-zod/releases/tag/eslint-plugin-zod-mini%401.9.1)
-> - [`eslint-plugin-zod@4.12.1`](https://github.com/marcalexiei/eslint-zod/releases/tag/eslint-plugin-zod%404.12.1)
+> - [`@acme/core@2.4.0`](https://github.com/acme/acme/releases/tag/%40acme%2Fcore%402.4.0)
+> - [`@acme/cli@1.9.2`](https://github.com/acme/acme/releases/tag/%40acme%2Fcli%401.9.2)
 
 ## Why another one
 
 Other tools treat a release as one whole-repo event, so the most they can say is "released".
 Changesets versions each package separately, so in a monorepo that answer is wrong — the person who
-opened a `zod-mini` rule request wants the `zod-mini` version, not a list of four.
+opened a `cli` bug report wants the `cli` version, not a list of four.
 
-- `apexskier/github-release-commenter` needs a `release` event. Changesets emits one per package,
-  so a four-package publish comments four times on the same thread.
-- `changesets/action/pr-comment` only addresses the PR of the triggering event, not merged ones.
+- [`apexskier/github-release-commenter`](https://github.com/apexskier/github-release-commenter)
+  needs a `release` event. Changesets emits one per package, so a four-package publish comments
+  four times on the same thread.
+- [`changesets/action/pr-comment`](https://github.com/changesets/action/tree/main/pr-comment) only
+  addresses the PR of the triggering event, not merged ones.
 - [changesets#511](https://github.com/changesets/changesets/issues/511) has wanted this since 2021;
   [changesets/action#80](https://github.com/changesets/action/pull/80) stalled that year and does
   no per-package attribution either.
@@ -137,18 +139,7 @@ already carrying it is skipped.
 - A changeset committed straight to the default branch has no PR, so it is skipped.
 - A shallow clone is deepened automatically, but `fetch-depth: 0` starts deep and is faster.
 
-## Development
-
-```bash
-pnpm install
-pnpm typecheck
-pnpm test    # unit tests; the playground integration test needs that repo checked out
-pnpm build   # rolldown -> dist/index.js
-```
-
-`dist/` is gitignored and never lives on `main`. A release commits it on a detached commit, tags
-`vX.Y.Z`, and force-moves the `vX` branch at it — the same shape `changesets/action` uses to
-release itself.
+Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
