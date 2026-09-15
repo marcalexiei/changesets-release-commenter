@@ -4,6 +4,7 @@ import { Buffer } from 'node:buffer';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { info } from '@actions/core';
 import { exec } from '@actions/exec';
 import { getOctokit } from '@actions/github';
 
@@ -33,58 +34,72 @@ function readVersion(): string {
 
 process.chdir(path.join(import.meta.dirname, '..'));
 
-const version = readVersion();
-const tag = `v${version}`;
-const releaseLine = `v${version.split('.')[0]}`;
-const isPrerelease = version.includes('-');
+async function main(): Promise<void> {
+  const version = readVersion();
+  const tag = `v${version}`;
+  const releaseLine = `v${version.split('.')[0]}`;
+  const isPrerelease = version.includes('-');
 
-// The checkout persists no credentials, so authenticate the push with the app token — it is the
-// identity the branch/tag protection bypass is granted to.
-const githubToken = process.env.GITHUB_TOKEN;
-if (!githubToken) {
-  throw new Error('GITHUB_TOKEN is required');
+  // A merge carrying no changeset still reaches this script, with the version already released.
+  const alreadyReleased = await exec('git', ['rev-parse', '-q', '--verify', `refs/tags/${tag}`], {
+    silent: true,
+    ignoreReturnCode: true,
+  });
+  if (alreadyReleased === 0) {
+    info(`${tag} is already released, nothing to do.`);
+    return;
+  }
+
+  // The checkout persists no credentials, so authenticate the push with the app token — it is the
+  // identity the branch/tag protection bypass is granted to.
+  const githubToken = process.env.GITHUB_TOKEN;
+  if (!githubToken) {
+    throw new Error('GITHUB_TOKEN is required');
+  }
+  const basic = Buffer.from(`x-access-token:${githubToken}`).toString('base64');
+  const gitEnv = {
+    ...process.env,
+    GIT_CONFIG_COUNT: '1',
+    GIT_CONFIG_KEY_0: 'http.https://github.com/.extraheader',
+    GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${basic}`,
+  };
+
+  await exec('git', ['checkout', '--detach']);
+  await exec('git', ['add', '--force', 'dist']);
+  await exec('git', ['commit', '-m', tag]);
+  // Annotated, not lightweight: `git push --follow-tags` below only pushes annotated tags.
+  await exec('git', ['tag', tag, '-m', tag]);
+
+  if (isPrerelease) {
+    await exec('git', ['push', 'origin', `refs/tags/${tag}`], { env: gitEnv });
+  } else {
+    await exec(
+      'git',
+      ['push', '--force', '--follow-tags', 'origin', `HEAD:refs/heads/${releaseLine}`],
+      {
+        env: gitEnv,
+      },
+    );
+  }
+
+  // The Marketplace lists an action from its GitHub Releases, not from its tags.
+  const repository = process.env.GITHUB_REPOSITORY;
+  if (repository === undefined) {
+    throw new Error('GITHUB_REPOSITORY is required');
+  }
+  const [owner, repo] = repository.split('/');
+  if (owner === undefined || repo === undefined) {
+    throw new Error(`GITHUB_REPOSITORY is malformed: ${repository}`);
+  }
+
+  await getOctokit(githubToken).rest.repos.createRelease({
+    owner,
+    repo,
+    tag_name: tag,
+    name: tag,
+    body: releaseNotes(version),
+    prerelease: isPrerelease,
+  });
 }
-const basic = Buffer.from(`x-access-token:${githubToken}`).toString('base64');
-const gitEnv = {
-  ...process.env,
-  GIT_CONFIG_COUNT: '1',
-  GIT_CONFIG_KEY_0: 'http.https://github.com/.extraheader',
-  GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${basic}`,
-};
 
-await exec('git', ['checkout', '--detach']);
-await exec('git', ['add', '--force', 'dist']);
-await exec('git', ['commit', '-m', tag]);
-// Annotated, not lightweight: `git push --follow-tags` below only pushes annotated tags.
-await exec('git', ['tag', tag, '-m', tag]);
-
-if (isPrerelease) {
-  await exec('git', ['push', 'origin', `refs/tags/${tag}`], { env: gitEnv });
-} else {
-  await exec(
-    'git',
-    ['push', '--force', '--follow-tags', 'origin', `HEAD:refs/heads/${releaseLine}`],
-    {
-      env: gitEnv,
-    },
-  );
-}
-
-// The Marketplace lists an action from its GitHub Releases, not from its tags.
-const repository = process.env.GITHUB_REPOSITORY;
-if (repository === undefined) {
-  throw new Error('GITHUB_REPOSITORY is required');
-}
-const [owner, repo] = repository.split('/');
-if (owner === undefined || repo === undefined) {
-  throw new Error(`GITHUB_REPOSITORY is malformed: ${repository}`);
-}
-
-await getOctokit(githubToken).rest.repos.createRelease({
-  owner,
-  repo,
-  tag_name: tag,
-  name: tag,
-  body: releaseNotes(version),
-  prerelease: isPrerelease,
-});
+await main();
