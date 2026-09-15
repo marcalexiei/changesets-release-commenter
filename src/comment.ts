@@ -176,4 +176,4 @@ async function comment(options: CommentOptions): Promise<void> {
 }
 
 export { comment, FOOTER, markerFor, releaseUrl, renderBody };
-export type { CommentApi, CommentOptions, RenderOptions };
+export type { CommentApi, RenderOptions };

@@ -405,5 +405,4 @@ async function collect(options: CollectOptions): Promise<Released> {
   return released;
 }
 
-export { collect, parseChangelogDiff, parseDependencyBumps, resolveReleaseSha, resolveTags };
-export type { CollectOptions };
+export { collect, parseChangelogDiff, parseDependencyBumps, resolveTags };

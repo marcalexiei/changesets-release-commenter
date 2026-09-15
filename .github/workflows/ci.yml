@@ -31,6 +31,8 @@ jobs:
         run: pnpm lint:js:ci
       - name: Format
         run: pnpm format:check
+      - name: Lint (knip)
+        run: pnpm lint:knip
 
   typecheck:
     name: Typecheck
