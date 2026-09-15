@@ -9,6 +9,15 @@ pnpm format:check  # oxfmt; `pnpm format` rewrites
 pnpm build         # rolldown -> dist/index.js
 ```
 
+## Tests
+
+Unit tests sit next to the code in `src/`. Anything that needs a real repository lives in `test/`,
+against fixtures in `test/fixtures/`: each shape is built once per run and copied per test, so a
+test may commit and tag freely without paying to rebuild the history.
+
+`test/integration.local.test.ts` drives the playground checkout and skips itself when that
+repository is absent, so it runs locally and not in CI.
+
 ## Changesets
 
 Every user-facing change needs a changeset — this action reads them to attribute a release, so a
