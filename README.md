@@ -2,35 +2,32 @@
 
 Comments on the pull requests a [Changesets](https://github.com/changesets/changesets) release
 shipped, and on the issues those PRs close — naming **which package at which version** each one
-shipped in.
+shipped in, each version linked to its GitHub release.
 
 > 🚀 Fixed by #433, released in:
 >
 > - [`eslint-plugin-zod-mini@1.9.1`](https://github.com/marcalexiei/eslint-zod/releases/tag/eslint-plugin-zod-mini%401.9.1)
 > - [`eslint-plugin-zod@4.12.1`](https://github.com/marcalexiei/eslint-zod/releases/tag/eslint-plugin-zod%404.12.1)
 
-Each version links to its GitHub release page, so the reader is one click from the notes.
-
 ## Why another one
 
-Existing tools treat a release as one whole-repo event, so the most they can say is "released".
-Changesets versions each package separately, so that answer is wrong in a monorepo — the person
-who opened a `zod-mini` rule request wants the `zod-mini` version, not a list of four.
+Other tools treat a release as one whole-repo event, so the most they can say is "released".
+Changesets versions each package separately, so in a monorepo that answer is wrong — the person who
+opened a `zod-mini` rule request wants the `zod-mini` version, not a list of four.
 
 - `apexskier/github-release-commenter` needs a `release` event. Changesets emits one per package,
   so a four-package publish comments four times on the same thread.
 - `changesets/action/pr-comment` only addresses the PR of the triggering event, not merged ones.
 - [changesets#511](https://github.com/changesets/changesets/issues/511) has wanted this since 2021;
-  [changesets/action#80](https://github.com/changesets/action/pull/80) stalled in 2021 and does no
-  per-package attribution either.
+  [changesets/action#80](https://github.com/changesets/action/pull/80) stalled that year and does
+  no per-package attribution either.
 
-This action reads the changesets the release consumed. Their front matter names the packages
-exactly as the author declared them, so the attribution is the one Changesets itself used —
-no guessing from file paths, and no dependency on a particular changelog generator.
+It reads the changesets the release consumed, so the attribution is the one Changesets itself
+used — no guessing from file paths, no dependency on a particular changelog generator.
 
 ## Usage
 
-Add one step to the job that already runs `changesets/action`:
+Run it as its own job, after the one that runs `changesets/action`:
 
 ```yaml
 name: Release
@@ -47,13 +44,14 @@ jobs:
 
     permissions:
       contents: write # release commits and tags
-      pull-requests: write # the version PR, and commenting on shipped PRs
-      issues: write # commenting on the issues those PRs close
+      pull-requests: write # the version PR
+
+    outputs:
+      published: ${{ steps.changesets.outputs.published }}
+      publishedPackages: ${{ steps.changesets.outputs['published-packages'] }}
 
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # the action needs history before the release commit
+      - uses: actions/checkout@v7
 
       - id: changesets
         uses: changesets/action@v2
@@ -62,19 +60,35 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Comment on shipped PRs and issues
-        if: steps.changesets.outputs.published == 'true'
-        continue-on-error: true # the packages are already published; a failed comment must not fail the release
-        uses: marcalexiei/changesets-release-commenter@v0
+  comment:
+    needs: release
+    if: ${{ needs.release.outputs.published == 'true' }}
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read # checking out the repository
+      pull-requests: write # commenting on shipped PRs
+      issues: write # commenting on the issues those PRs close
+
+    steps:
+      - uses: actions/checkout@v7
         with:
-          published-packages: ${{ steps.changesets.outputs.published-packages }}
+          fetch-depth: 0 # the action reads the history before the release commit
+
+      - uses: marcalexiei/changesets-release-commenter@v0
+        with:
+          published-packages: ${{ needs.release.outputs.publishedPackages }}
 ```
 
-Two details in that step are deliberate:
+Its own job rather than a step in the release one, for two reasons:
 
-- **`if: … published == 'true'`** — only a run that actually published has anything to announce.
-- **`continue-on-error: true`** — the step runs _after_ the packages are out. A failed comment
-  should never turn a successful release red.
+- It runs _after_ the packages are on npm. As a separate job, a failed comment is a red job to
+  re-run — not an error swallowed inside a green release, and not a `continue-on-error: true`
+  that hides it entirely.
+- The release job never needs `issues: write`.
+
+`published-packages` contains a dash, so it has to be read as `outputs['published-packages']`;
+dot notation parses as a subtraction.
 
 ## Inputs
 
@@ -98,56 +112,43 @@ Two details in that step are deliberate:
 ## How it works
 
 1. Resolves the release commit from a tag this publish pushed — `<name>@<version>` in a workspace,
-   `v<version>` in a single-package repo.
-   Never `HEAD`: on a `workflow_run` checkout that follows the default branch, which may have moved
-   past the release, and the diff would silently come back empty.
-2. Finds the PRs the release shipped, by one of two routes (`resolve-via`):
-   - **`changesets`** — the `.changeset/*.md` files the release consumed. They are deleted by the
-     release commit but readable at its parent; the front matter names the packages exactly as the
-     author declared them, and the commit that added each file resolves to its PR.
-     Works with **any** changelog generator. Costs one API call per changeset.
-   - **`changelog`** — `/pull/N` links in the `*CHANGELOG.md` diff, attributed to the package owning
-     each changelog file. Zero API calls, but needs a generator that writes PR links
-     (`@changesets/changelog-github`). Dependency-bump lines carry only commit links, so transitive
-     bumps exclude themselves with no filtering.
-   - **`auto`** (default) — try `changesets`, fall back to `changelog`.
+   `v<version>` otherwise. Never `HEAD`, which on a `workflow_run` checkout may have moved past the
+   release.
+2. Finds the PRs the release shipped (`resolve-via`):
+   - **`changesets`** — the `.changeset/*.md` files the release consumed, read at the release
+     commit's parent. Their front matter names the packages as the author declared them, so this
+     works with **any** changelog generator; one API call per changeset.
+   - **`changelog`** — `/pull/N` links in the `*CHANGELOG.md` diff, attributed to the package
+     owning each file. Zero API calls, but needs `@changesets/changelog-github`.
+   - **`auto`** (default) — `changesets`, falling back to `changelog`. Both give identical output,
+     so `auto` changes only the number of API calls.
 3. With `include-dependents` (default), also attributes packages republished _because_ of the
-   change. Changesets records those as `Updated dependencies [[`sha`]]`, and that commit resolves
-   to the PR that caused the bump — so a changeset on a shared internal package still tells the
-   reader which consumer versions carry it. They are listed separately from the direct packages,
-   because the direct ones are what the change _is_ and the dependents are how it reaches people.
-4. Comments on each PR, then resolves `closingIssuesReferences` per PR and comments on each issue,
-   unioning the packages when several PRs close the same one.
-
-Both routes are verified to produce identical output on the same release, so `auto` changes
-nothing but the number of API calls.
+   change, listed separately.
+4. Comments on each PR, then on the issues those PRs close, unioning the packages when several PRs
+   close the same one.
 
 Re-running is a no-op: each comment carries a marker holding the exact package set, and a thread
 already carrying it is skipped.
 
-## Requirements and limits
+## Limits
 
-- `fetch-depth: 0` is recommended. A shallow clone is deepened automatically, but starting deep
-  is faster and avoids repeated fetches.
-- Works with both workspace monorepos and single-package repos.
 - `closingIssuesReferences` only sees closing keywords in the PR body. Issues closed by hand, or
   referenced only in a commit message, are missed.
 - A changeset committed straight to the default branch has no PR, so it is skipped.
-- `resolve-via: changelog` additionally requires `@changesets/changelog-github`; the default `auto`
-  does not.
+- A shallow clone is deepened automatically, but `fetch-depth: 0` starts deep and is faster.
 
 ## Development
 
 ```bash
 pnpm install
 pnpm typecheck
-pnpm test        # unit tests; the playground integration test runs only when that repo is checked out
+pnpm test    # unit tests; the playground integration test needs that repo checked out
 pnpm build   # rolldown -> dist/index.js
 ```
 
-`dist/` is gitignored and never lives on `main`. A release commits it on a detached commit,
-tags `vX.Y.Z`, and force-moves the `vX` branch at it — so `@v0` always points at a built bundle.
-That is the same shape `changesets/action` uses to release itself.
+`dist/` is gitignored and never lives on `main`. A release commits it on a detached commit, tags
+`vX.Y.Z`, and force-moves the `vX` branch at it — the same shape `changesets/action` uses to
+release itself.
 
 ## License
 
