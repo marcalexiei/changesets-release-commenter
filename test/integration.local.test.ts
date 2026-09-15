@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 // Local-only: drives collect() against the playground checkout when it is present.
 import { describe, expect, it } from 'vitest';
 
-import { collect } from './collect.js';
+import { collect } from '../src/collect.js';
 
 const cwd = `${process.env.HOME}/development/changesets-release-commenter-playground`;
 const published = [
