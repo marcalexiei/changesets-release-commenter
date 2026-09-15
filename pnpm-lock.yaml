@@ -167,38 +167,38 @@ importers:
   .:
     dependencies:
       '@actions/core':
-        specifier: ^3.0.1
+        specifier: 3.0.1
         version: 3.0.1
       '@actions/exec':
-        specifier: ^3.0.0
+        specifier: 3.0.0
         version: 3.0.0
       '@actions/github':
-        specifier: ^9.1.1
+        specifier: 9.1.1
         version: 9.1.1
       '@changesets/git':
-        specifier: ^4.0.0
+        specifier: 4.0.1
         version: 4.0.1
       '@changesets/parse':
-        specifier: ^1.0.0
+        specifier: 1.0.0
         version: 1.0.0
       '@manypkg/get-packages':
-        specifier: ^3.1.0
+        specifier: 3.1.0
         version: 3.1.0
     devDependencies:
       '@changesets/changelog-github':
-        specifier: ^1.0.1
+        specifier: 1.0.1
         version: 1.0.1
       '@changesets/cli':
-        specifier: ^3.0.2
+        specifier: 3.0.2
         version: 3.0.2
       '@marcalexiei/oxfmt-config':
-        specifier: ^1.3.0
+        specifier: 1.3.0
         version: 1.3.0(oxfmt@0.67.0)
       '@marcalexiei/oxlint-config':
-        specifier: ^1.5.0
+        specifier: 1.5.0
         version: 1.5.0(oxlint-tsgolint@7.0.2001)(oxlint@1.82.0(oxlint-tsgolint@7.0.2001))
       '@types/node':
-        specifier: ^24.13.4
+        specifier: 24.13.4
         version: 24.13.4
       oxfmt:
         specifier: 0.67.0
@@ -207,16 +207,16 @@ importers:
         specifier: 1.82.0
         version: 1.82.0(oxlint-tsgolint@7.0.2001)
       oxlint-tsgolint:
-        specifier: ^7.0.2001
+        specifier: 7.0.2001
         version: 7.0.2001
       rolldown:
-        specifier: ^1.0.0-beta.9
+        specifier: 1.2.8
         version: 1.2.8
       typescript:
-        specifier: ^7.0.2
+        specifier: 7.0.2
         version: 7.0.2
       vitest:
-        specifier: ^5.0.0
+        specifier: 5.0.0
         version: 5.0.0(@types/node@24.13.4)(vite@8.3.0(@types/node@24.13.4)(yaml@2.9.1))
 
 packages:
