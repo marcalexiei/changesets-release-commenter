@@ -1,5 +1,17 @@
 # changesets-release-commenter
 
+## 0.3.0
+
+### Minor Changes
+
+- [#20](https://github.com/marcalexiei/changesets-release-commenter/pull/20) [`6428f54`](https://github.com/marcalexiei/changesets-release-commenter/commit/6428f5485d9d47576a3382bf7d85f9b99b4f7300) - feat: credit the action in a comment footer
+  
+  Sits before the hidden marker, so a thread carrying a comment from an earlier version still deduplicates. `footer: false` leaves it out.
+
+### Patch Changes
+
+- [#25](https://github.com/marcalexiei/changesets-release-commenter/pull/25) [`68f8e18`](https://github.com/marcalexiei/changesets-release-commenter/commit/68f8e1845835e1dc8060ad0ffb47fd8f98fc46ad) - chore(deps): update `@actions/core`, `@actions/exec` and `@actions/github` to their current majors
+
 ## 0.2.2
 
 ### Patch Changes
