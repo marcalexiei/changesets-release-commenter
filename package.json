@@ -26,13 +26,13 @@
   "devDependencies": {
     "@changesets/changelog-github": "1.0.1",
     "@changesets/cli": "3.0.2",
-    "@marcalexiei/oxfmt-config": "1.3.0",
-    "@marcalexiei/oxlint-config": "1.5.0",
+    "@marcalexiei/oxfmt-config": "2.0.1",
+    "@marcalexiei/oxlint-config": "1.6.0",
     "@types/node": "24.13.4",
     "knip": "6.35.1",
-    "oxfmt": "0.67.0",
-    "oxlint": "1.82.0",
-    "oxlint-tsgolint": "7.0.2001",
+    "oxfmt": "0.72.0",
+    "oxlint": "1.87.0",
+    "oxlint-tsgolint": "7.0.2003",
     "rolldown": "1.2.8",
     "typescript": "7.0.2",
     "vitest": "5.0.0"
