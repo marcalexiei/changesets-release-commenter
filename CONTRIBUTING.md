@@ -45,8 +45,8 @@ The title becomes the CHANGELOG entry, so it reads best in the same shape as the
 
 ## Releasing
 
-`dist/` is gitignored and never lives on `main`. A release commits it on a detached commit, tags
-`vX.Y.Z`, and force-moves the `vX` branch at it — so the major ref always points at a built bundle. That is
-the same shape `changesets/action` uses to release itself.
+`dist/` is gitignored and never lives on `main`. A release commits it through the API as a child of
+`main`'s HEAD, so GitHub signs it, and tags that commit `vX.Y.Z`. Publishing the release moves the
+`vX` tag to it, so the major ref always points at a built bundle.
 
 `pnpm bump` and `pnpm release` drive that from CI; neither is meant to be run by hand on a clone.

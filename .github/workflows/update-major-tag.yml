@@ -1,0 +1,96 @@
+name: Update major tag
+run-name: Move ${{ inputs.major_version || 'the major tag' }} to ${{ inputs.target || github.event.release.tag_name }}
+
+# The README tells people to pin `@v0`.
+# Changesets only creates the exact-version tag, so the floating major is
+# moved here: automatically on a release, by hand to roll a bad one back.
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      major_version:
+        description: Which major tag to move
+        required: true
+        type: choice
+        options:
+          - v0
+          - v1
+          - v2
+      target:
+        description: The release to point it at, e.g. v0.1.0
+        required: true
+        type: string
+
+permissions: {}
+
+# Two releases racing could leave the major tag on the older one.
+concurrency:
+  group: '${{ github.workflow }}'
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  update-major-tag:
+    name: Update major tag
+    environment: release
+
+    # A prerelease must not move the tag everyone is pinned to.
+    # Null, and so allowed, on a dispatch.
+    if: ${{ !github.event.release.prerelease }}
+
+    runs-on: ubuntu-24.04
+
+    timeout-minutes: 5
+
+    steps:
+      # The same bot release.yml uses, for the same reason: GITHUB_TOKEN is not
+      # guaranteed to be able to write here.
+      - name: Setup release helper
+        id: release-helper
+        uses: marcalexiei/github-actions/setup-github-app-user-bot@e9655755a6dc0040e650a931ee5d958c7d7a9f22 # v2.3.1
+        with:
+          app-id: ${{ vars.RELEASE_HELPER_APP_ID }}
+          private-key: ${{ secrets.RELEASE_HELPER_PRIVATE_KEY }}
+
+      - name: Move the major tag
+        env:
+          GH_TOKEN: ${{ steps.release-helper.outputs.token }}
+          REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          INPUT_MAJOR: ${{ inputs.major_version }}
+          INPUT_TARGET: ${{ inputs.target }}
+        run: |
+          tag="${INPUT_TARGET:-$RELEASE_TAG}"
+          major="${INPUT_MAJOR:-${tag%%.*}}"
+
+          # One pattern, two guarantees: the target is a vX.Y.Z release tag, and
+          # it is on the major being moved. A dispatch can fail both; a release
+          # derives the major from the tag, so it can only fail the first.
+          case "${tag}" in
+            "${major}".[0-9]*.[0-9]*) ;;
+            *)
+              [ -z "${INPUT_TARGET}" ] || {
+                echo "::error::${tag} is not a ${major}.x.y release tag."
+                exit 1
+              }
+              echo "::notice::${tag} is not a release tag, so there is no major to move."
+              exit 0
+              ;;
+          esac
+
+          # `commits/` resolves an annotated tag to its commit.
+          sha="$(gh api "repos/${REPO}/commits/${tag}" --jq .sha)"
+
+          # A new major has no tag to move yet.
+          if gh api "repos/${REPO}/git/ref/tags/${major}" --silent 2>/dev/null; then
+            gh api -X PATCH "repos/${REPO}/git/refs/tags/${major}" -f sha="${sha}" -F force=true
+          else
+            gh api "repos/${REPO}/git/refs" -f ref="refs/tags/${major}" -f sha="${sha}"
+          fi
+
+          echo "::notice::${major} now points at ${sha} (${tag})."

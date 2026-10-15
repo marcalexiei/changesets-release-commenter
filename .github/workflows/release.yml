@@ -1,0 +1,88 @@
+name: Release
+
+# Changesets keeps a version PR open with the pending bump and changelog.
+# Merging it is what tags and publishes.
+# `workflow_run` is limited to main, and the job checks the head repository, so
+# no fork PR reaches it.
+on:
+  workflow_run: # zizmor: ignore[dangerous-triggers]
+    workflows:
+      - CI
+    types:
+      - completed
+    branches:
+      - main
+
+permissions: {}
+
+concurrency:
+  group: '${{ github.workflow }}-${{ github.ref }}'
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  release:
+    name: Release
+    environment: release
+
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_repository.full_name == github.repository }}
+
+    runs-on: ubuntu-24.04
+
+    timeout-minutes: 20
+
+    permissions:
+      contents: read # the app token, not GITHUB_TOKEN, does the writing
+
+    steps:
+      # GITHUB_TOKEN events start no workflows, so CI would never run on the version PR.
+      - name: Setup release helper
+        id: release-helper
+        uses: marcalexiei/github-actions/setup-github-app-user-bot@e9655755a6dc0040e650a931ee5d958c7d7a9f22 # v2.3.1
+        with:
+          app-id: ${{ vars.RELEASE_HELPER_APP_ID }}
+          private-key: ${{ secrets.RELEASE_HELPER_PRIVATE_KEY }}
+
+      # Full history, so Changesets finds the commit that added each changeset.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false # changesets/action pushes the version branch with its own token
+
+      - name: Install dependencies
+        uses: marcalexiei/github-actions/setup-node-and-pnpm@92c64c084d3479cff756151cb8163d03608f2acd # v2.4.2
+        with:
+          save-cache: false
+
+      # `dist/` is gitignored, so `pnpm release` commits this build for the tag.
+      - name: Build the bundle
+        run: pnpm build
+
+      # Opens or updates the version PR, or, when that PR has just landed, runs
+      # `pnpm release` and creates the GitHub release for the tag it made.
+      # Publishing is what starts the workflow that moves `v0`.
+      - name: Changesets
+        id: changesets
+        uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        env:
+          GITHUB_TOKEN: ${{ steps.release-helper.outputs.token }} # `pnpm release` commits through the API
+        with:
+          github-token: ${{ steps.release-helper.outputs.token }}
+          version-script: pnpm bump
+          publish-script: pnpm release
+          commit-message: 'chore: version'
+          pr-title: 'chore: version'
+
+  on-ci-fail:
+    name: 'Failure'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 1
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    steps:
+      - name: Report the skipped release
+        run: echo "CI failed. Release will not run"

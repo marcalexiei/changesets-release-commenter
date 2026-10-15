@@ -1,105 +1,65 @@
-// An action ships as a git ref, not an npm package: commit the built `dist` on a detached
-// commit, tag it, and force the major release line at it. `dist` stays gitignored on main.
-import { Buffer } from 'node:buffer';
-import fs from 'node:fs';
-import path from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { appendFileSync, readdirSync, readFileSync, statSync } from 'node:fs';
 
-import { info } from '@actions/core';
-import { exec } from '@actions/exec';
-import { getOctokit } from '@actions/github';
+/**
+ * Publish the release Changesets has already versioned.
+ *
+ * An action ships as a git ref, not an npm package, and `dist` stays gitignored on `main`. So the
+ * workflow builds it and it is committed here as a child of `main`'s HEAD, and that commit is
+ * what `vX.Y.Z` names. It is made through the API because GitHub signs what an app's token
+ * commits there. `changesets/action` creates the GitHub release for each tag listed in
+ * `CHANGESETS_OUTPUT`, and publishing it is what moves the `vX` tag.
+ */
 
-/** The CHANGELOG section for one version, used as the release notes. */
-function releaseNotes(version: string): string {
-  const changelog = fs.readFileSync('CHANGELOG.md', 'utf8');
-  const start = changelog.indexOf(`\n## ${version}\n`);
-  if (start === -1) {
-    return `See CHANGELOG.md for ${version}.`;
-  }
-  const rest = changelog.slice(start + 1);
-  const next = rest.indexOf('\n## ');
-  return (next === -1 ? rest : rest.slice(0, next)).trim();
+// `pnpm run` sets the `npm_package_*` ones, `changesets/action` sets `CHANGESETS_OUTPUT`.
+const {
+  CHANGESETS_OUTPUT,
+  GITHUB_API_URL,
+  GITHUB_REPOSITORY,
+  GITHUB_TOKEN,
+  npm_package_name,
+  npm_package_version,
+} = process.env;
+if (CHANGESETS_OUTPUT === undefined) {
+  throw new Error('CHANGESETS_OUTPUT is not set.');
 }
 
-/** package.json's version, read without asserting a shape onto JSON.parse. */
-function readVersion(): string {
-  const parsed: unknown = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-  if (typeof parsed !== 'object' || parsed === null || !('version' in parsed)) {
-    throw new Error('package.json has no version');
-  }
-  if (typeof parsed.version !== 'string') {
-    throw new TypeError('package.json version is not a string');
-  }
-  return parsed.version;
-}
-
-process.chdir(path.join(import.meta.dirname, '..'));
-
-async function main(): Promise<void> {
-  const version = readVersion();
-  const tag = `v${version}`;
-  const releaseLine = `v${version.split('.')[0]}`;
-  const isPrerelease = version.includes('-');
-
-  // A merge carrying no changeset still reaches this script, with the version already released.
-  const alreadyReleased = await exec('git', ['rev-parse', '-q', '--verify', `refs/tags/${tag}`], {
-    silent: true,
-    ignoreReturnCode: true,
+const post = async (endpoint: string, body: object): Promise<string> => {
+  const response = await fetch(`${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/${endpoint}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${GITHUB_TOKEN}` },
+    body: JSON.stringify(body),
   });
-  if (alreadyReleased === 0) {
-    info(`${tag} is already released, nothing to do.`);
-    return;
+  if (!response.ok) {
+    throw new Error(`POST ${endpoint}: ${response.status} ${await response.text()}`);
   }
+  const result = await response.json();
+  // Creating a ref returns no `sha`, and nothing reads it.
+  return typeof result === 'object' && result !== null && 'sha' in result ? String(result.sha) : '';
+};
 
-  // The checkout persists no credentials, so authenticate the push with the app token — it is the
-  // identity the branch/tag protection bypass is granted to.
-  const githubToken = process.env.GITHUB_TOKEN;
-  if (!githubToken) {
-    throw new Error('GITHUB_TOKEN is required');
-  }
-  const basic = Buffer.from(`x-access-token:${githubToken}`).toString('base64');
-  const gitEnv = {
-    ...process.env,
-    GIT_CONFIG_COUNT: '1',
-    GIT_CONFIG_KEY_0: 'http.https://github.com/.extraheader',
-    GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${basic}`,
-  };
+const rev = (spec: string): string => execFileSync('git', ['rev-parse', spec]).toString().trim();
 
-  await exec('git', ['checkout', '--detach']);
-  await exec('git', ['add', '--force', 'dist']);
-  await exec('git', ['commit', '-m', tag]);
-  // Annotated, not lightweight: `git push --follow-tags` below only pushes annotated tags.
-  await exec('git', ['tag', tag, '-m', tag]);
+const tag = `v${npm_package_version}`;
 
-  if (isPrerelease) {
-    await exec('git', ['push', 'origin', `refs/tags/${tag}`], { env: gitEnv });
-  } else {
-    await exec(
-      'git',
-      ['push', '--force', '--follow-tags', 'origin', `HEAD:refs/heads/${releaseLine}`],
-      {
-        env: gitEnv,
-      },
-    );
-  }
+// Every push to `main` without changesets lands here, so skip a released version.
+const released =
+  execFileSync('git', ['ls-remote', '--tags', 'origin', `refs/tags/${tag}`]).length > 0;
 
-  // The Marketplace lists an action from its GitHub Releases, not from its tags.
-  const repository = process.env.GITHUB_REPOSITORY;
-  if (repository === undefined) {
-    throw new Error('GITHUB_REPOSITORY is required');
-  }
-  const [owner, repo] = repository.split('/');
-  if (owner === undefined || repo === undefined) {
-    throw new Error(`GITHUB_REPOSITORY is malformed: ${repository}`);
-  }
-
-  await getOctokit(githubToken).rest.repos.createRelease({
-    owner,
-    repo,
-    tag_name: tag,
-    name: tag,
-    body: releaseNotes(version),
-    prerelease: isPrerelease,
+if (!released) {
+  const tree = await post('git/trees', {
+    base_tree: rev('HEAD^{tree}'),
+    tree: readdirSync('dist', { recursive: true, encoding: 'utf8' })
+      .map((file) => `dist/${file}`)
+      .filter((path) => statSync(path).isFile())
+      .map((path) => ({ path, mode: '100644', type: 'blob', content: readFileSync(path, 'utf8') })),
   });
-}
+  // No author or committer: either would stop GitHub from signing it.
+  const commit = await post('git/commits', { message: tag, tree, parents: [rev('HEAD')] });
+  await post('git/refs', { ref: `refs/tags/${tag}`, sha: commit });
 
-await main();
+  appendFileSync(
+    CHANGESETS_OUTPUT,
+    `${JSON.stringify({ type: 'git-tag', tag, packageName: npm_package_name })}\n`,
+  );
+}
