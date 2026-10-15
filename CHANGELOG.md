@@ -1,5 +1,11 @@
 # changesets-release-commenter
 
+## 0.3.1
+
+### Patch Changes
+
+- [#37](https://github.com/marcalexiei/changesets-release-commenter/pull/37) [`16fe23a`](https://github.com/marcalexiei/changesets-release-commenter/commit/16fe23abd1ffcc2341b025215f6ac907b44a7482) - ci: sign release commits and move `v0` as a tag
+
 ## 0.3.0
 
 ### Minor Changes
