@@ -46,6 +46,9 @@ const tag = `v${npm_package_version}`;
 const released =
   execFileSync('git', ['ls-remote', '--tags', 'origin', `refs/tags/${tag}`]).length > 0;
 
+// Missing output warns in `changesets/action`; an empty one just means nothing was published.
+appendFileSync(CHANGESETS_OUTPUT, '');
+
 if (!released) {
   const tree = await post('git/trees', {
     base_tree: rev('HEAD^{tree}'),
