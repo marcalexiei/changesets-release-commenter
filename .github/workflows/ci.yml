@@ -10,9 +10,9 @@ on:
       - main
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  # Only a superseded PR push is worth cancelling; a merge_group run gates the merge itself.
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # head_ref is set only on PRs, so push and merge_group runs get a group per commit and are never cancelled
+  group: ${{ github.workflow }}-${{ github.head_ref || github.sha }}
+  cancel-in-progress: true
 
 permissions: {}
 
