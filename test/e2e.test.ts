@@ -30,12 +30,12 @@ function recordingApi(): CommentApi & { posted: Map<number, Array<string>> } {
   const posted = new Map<number, Array<string>>();
   return {
     posted,
-    listCommentBodies: (issue) => Promise.resolve(posted.get(issue) ?? []),
-    createComment: (issue, body) => {
+    listCommentBodies: async (issue) => Promise.resolve(posted.get(issue) ?? []),
+    createComment: async (issue, body) => {
       posted.set(issue, [...(posted.get(issue) ?? []), body]);
       return Promise.resolve();
     },
-    closingIssues: (pr) => Promise.resolve(CLOSING.get(pr) ?? []),
+    closingIssues: async (pr) => Promise.resolve(CLOSING.get(pr) ?? []),
   };
 }
 

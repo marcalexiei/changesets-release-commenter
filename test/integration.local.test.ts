@@ -18,7 +18,7 @@ const expected = {
   6: ['fixture-plugin-a@1.0.1', 'fixture-plugin-b@1.0.1'],
   7: ['fixture-plugin-b@1.0.1'],
 };
-const commitToPullRequest = (sha: string): Promise<number | null> => {
+const commitToPullRequest = async (sha: string): Promise<number | null> => {
   const out = execSync(
     `gh api repos/marcalexiei/changesets-release-commenter-playground/commits/${sha}/pulls --jq '.[0].number'`,
     { encoding: 'utf8' },
