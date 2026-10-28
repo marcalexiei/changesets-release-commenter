@@ -13,7 +13,7 @@ import { checkout, singlePackageBase } from './fixtures/repos.js';
 let repo: Repo;
 
 /** Every commit maps to the same PR, which is all these tests need to tell resolution apart. */
-const commitToPullRequest = (): Promise<number | null> => Promise.resolve(42);
+const commitToPullRequest = async (): Promise<number | null> => Promise.resolve(42);
 
 /** The `name@version` list each PR shipped in, as a plain object the assertions can read. */
 const shipped = async (): Promise<Record<string, Array<string>>> => {

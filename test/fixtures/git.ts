@@ -51,7 +51,7 @@ function initRepo(cwd: string): Repo {
 
 /** Reads `(#N)` off a commit subject, standing in for the PR lookup the action does over the API. */
 function pullRequestFromSubject(repo: Repo): (sha: string) => Promise<number | null> {
-  return (sha) => {
+  return async (sha) => {
     const subject = repo.git('log', '-1', '--format=%s', sha).trim();
     const match = /\(#(?<pr>\d+)\)$/u.exec(subject);
     const pr = match?.groups?.pr;

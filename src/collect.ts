@@ -116,7 +116,7 @@ function addDependent(released: Released, pr: number, ref: string): void {
  * requires the path to exist in the starting commit, so it finds nothing for a changeset the
  * release has already consumed. Changesets calls it before versioning; we run after.
  */
-function commitThatAddedFile(cwd: string, ref: string, file: string): Promise<string | null> {
+async function commitThatAddedFile(cwd: string, ref: string, file: string): Promise<string | null> {
   return gitOrNull(
     ['log', '--diff-filter=A', '--max-count=1', '--format=%H', ref, '--', file],
     cwd,
