@@ -8,6 +8,7 @@ export default defineConfig({
   },
   extends: [baseConfig, typescriptConfig],
   options: {
+    reportUnusedDisableDirectives: 'error',
     typeAware: true,
   },
 });
