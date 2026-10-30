@@ -82,8 +82,8 @@ jobs:
           published-packages: ${{ needs.release.outputs.publishedPackages }}
 ```
 
-The example pins the latest release by SHA. To follow every `v0` release instead, use
-`marcalexiei/changesets-release-commenter@v0`.
+The example pins the latest release by SHA. To follow every release of the current major instead,
+use `marcalexiei/changesets-release-commenter@v0`.
 
 Its own job rather than a step in the release one, for two reasons:
 

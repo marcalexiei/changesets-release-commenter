@@ -66,6 +66,7 @@ jobs:
           GITHUB_TOKEN: ${{ steps.release-helper.outputs.token }} # `pnpm release` commits through the API
         with:
           github-token: ${{ steps.release-helper.outputs.token }}
+          version-script: pnpm bump
           publish-script: pnpm release
           commit-message: 'chore: version'
           pr-title: 'chore: version'
