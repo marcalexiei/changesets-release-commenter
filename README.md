@@ -82,6 +82,9 @@ jobs:
           published-packages: ${{ needs.release.outputs.publishedPackages }}
 ```
 
+The example pins the latest release by SHA. To follow every `v0` release instead, use
+`marcalexiei/changesets-release-commenter@v0`.
+
 Its own job rather than a step in the release one, for two reasons:
 
 - It runs _after_ the packages are on npm. As a separate job, a failed comment is a red job to
