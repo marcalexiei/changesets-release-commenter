@@ -1,0 +1,90 @@
+name: Update README version pin
+run-name: Update README version pin to ${{ inputs.target || github.event.release.tag_name }}
+
+# The README example pins the action by SHA, so every release has to move it.
+# The `main` ruleset requires CI, so it goes through a PR rather than a push.
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      target:
+        description: The release to pin, e.g. v0.1.0
+        required: true
+        type: string
+
+permissions: {}
+
+# Two releases racing could leave the README pinned to the older one.
+concurrency:
+  group: '${{ github.workflow }}'
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  TAG: ${{ inputs.target || github.event.release.tag_name }}
+
+jobs:
+  update-readme-version-pin:
+    name: Update README version pin
+    environment: release
+
+    # Nobody should be told to pin a prerelease. Null, and so allowed, on a dispatch.
+    if: ${{ !github.event.release.prerelease }}
+
+    runs-on: ubuntu-24.04
+
+    timeout-minutes: 5
+
+    permissions:
+      contents: read # the app token, not GITHUB_TOKEN, does the writing
+
+    steps:
+      # GITHUB_TOKEN events start no workflows, and the ruleset needs CI to merge.
+      - name: Setup release helper
+        id: release-helper
+        uses: marcalexiei/github-actions/setup-github-app-user-bot@e9655755a6dc0040e650a931ee5d958c7d7a9f22 # v2.3.1
+        with:
+          app-id: ${{ vars.RELEASE_HELPER_APP_ID }}
+          private-key: ${{ secrets.RELEASE_HELPER_PRIVATE_KEY }}
+
+      # `ref` is explicit because a release event checks out the tag.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Pin the example
+        uses: marcalexiei/github-actions/pin-readme-version@4a51d6dfcaac0c263c6f2efd97249eafe0076721 # v2.5.0
+        with:
+          tag: ${{ env.TAG }}
+
+      # A clean tree opens no PR. No changeset, so it stays out of the changelog.
+      # jactionlint ignore=superfluous-actions
+      - name: Create Pull Request if the README changed
+        id: create_pr
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ steps.release-helper.outputs.token }}
+          add-paths: README.md
+          commit-message: 'chore: pin the README example to ${{ env.TAG }}'
+          sign-commits: true
+          branch: 'update-readme-version-pin/${{ env.TAG }}'
+          delete-branch: true
+          title: 'chore: pin the README example to ${{ env.TAG }}'
+          body: >-
+            The [update-readme-version-pin](${{ github.server_url }}/${{ github.repository }}/actions/workflows/update-readme-version-pin.yml)
+            workflow points the README's `uses:` line at the commit ${{ env.TAG }} was cut from.
+          labels: 'documentation'
+
+      - name: Enable auto-merge
+        if: ${{ steps.create_pr.outputs.pull-request-number }} # the PR might not have been opened
+        run: gh pr merge --squash --auto "${PULL_REQUEST_NUMBER}"
+        env:
+          GH_TOKEN: ${{ steps.release-helper.outputs.token }}
+          PULL_REQUEST_NUMBER: ${{ steps.create_pr.outputs.pull-request-number }}

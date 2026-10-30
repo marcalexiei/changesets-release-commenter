@@ -1,7 +1,7 @@
 name: Update major tag
 run-name: Move ${{ inputs.major_version || 'the major tag' }} to ${{ inputs.target || github.event.release.tag_name }}
 
-# The README tells people to pin `@v0`.
+# `@v0` is the floating ref for anyone who does not pin a SHA.
 # Changesets only creates the exact-version tag, so the floating major is
 # moved here: automatically on a release, by hand to roll a bad one back.
 on:

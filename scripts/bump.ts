@@ -1,4 +1,4 @@
-// Version the package, then keep the README's `@vN` references in step with the new major line.
+// Version the package, then move the README's floating `@vN` refs to the new major.
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -30,7 +30,7 @@ fs.writeFileSync(
   fs
     .readFileSync(readmePath, 'utf8')
     .replaceAll(
-      /marcalexiei\/changesets-release-commenter@[^\s)]+/g,
+      /marcalexiei\/changesets-release-commenter@v\d+(?![\d.])/g,
       `marcalexiei/changesets-release-commenter@${releaseLine}`,
     ),
 );

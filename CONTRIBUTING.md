@@ -50,3 +50,4 @@ The title becomes the CHANGELOG entry, so it reads best in the same shape as the
 `vX` tag to it, so the major ref always points at a built bundle.
 
 `pnpm bump` and `pnpm release` drive that from CI; neither is meant to be run by hand on a clone.
+Publishing also opens a PR that pins the README example to the new tag's commit.
