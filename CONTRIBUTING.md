@@ -49,4 +49,5 @@ The title becomes the CHANGELOG entry, so it reads best in the same shape as the
 `main`'s HEAD, so GitHub signs it, and tags that commit `vX.Y.Z`. Publishing the release moves the
 `vX` tag to it, so the major ref always points at a built bundle.
 
-`pnpm bump` and `pnpm release` drive that from CI; neither is meant to be run by hand on a clone.
+`pnpm release` drives that from CI and is not meant to be run by hand on a clone. Publishing also
+opens a PR that pins the README example to the new tag's commit.

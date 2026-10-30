@@ -1,5 +1,5 @@
 {
   "$schema": "./node_modules/knip/schema.json",
-  // `scripts/bump.ts` runs the `changeset` binary through `exec`, which knip cannot see.
+  // `changesets/action` runs the `changeset` binary, which knip cannot see.
   "ignoreDependencies": ["@changesets/cli"]
 }

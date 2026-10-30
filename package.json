@@ -13,7 +13,6 @@
     "lint:js:fix": "oxlint --fix",
     "lint:js:ci": "oxlint --format=github",
     "lint:knip": "knip",
-    "bump": "node ./scripts/bump.ts",
     "release": "node ./scripts/release.ts"
   },
   "dependencies": {
