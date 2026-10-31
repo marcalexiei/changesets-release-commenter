@@ -36,7 +36,7 @@ jobs:
     # Nobody should be told to pin a prerelease. Null, and so allowed, on a dispatch.
     if: ${{ !github.event.release.prerelease }}
 
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
 
     timeout-minutes: 5
 
