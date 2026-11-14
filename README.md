@@ -119,7 +119,8 @@ dot notation parses as a subtraction.
 
 1. Resolves the release commit from a tag this publish pushed — `<name>@<version>` in a workspace,
    `v<version>` otherwise. Never `HEAD`, which on a `workflow_run` checkout may have moved past the
-   release.
+   release. An earlier version commit that was never published on its own (a changeset was
+   pending when it merged) is included too, when it bumped a package to the version published now.
 2. Finds the PRs the release shipped (`resolve-via`):
    - **`changesets`** — the `.changeset/*.md` files the release consumed, read at the release
      commit's parent. Their front matter names the packages as the author declared them, so this
