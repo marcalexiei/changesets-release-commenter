@@ -3,7 +3,7 @@
 ```bash
 pnpm install
 pnpm typecheck
-pnpm test          # unit tests; the playground integration test needs that repo checked out
+pnpm test          # unit tests; the playground integration test needs that repo checked out and readable by gh
 pnpm lint:js       # oxlint; `pnpm lint:js:fix` applies what it can
 pnpm format:check  # oxfmt; `pnpm format` rewrites
 pnpm build         # rolldown -> dist/index.js
@@ -16,7 +16,7 @@ against fixtures in `test/fixtures/`: each shape is built once per run and copie
 test may commit and tag freely without paying to rebuild the history.
 
 `test/integration.local.test.ts` drives the playground checkout and skips itself when that
-repository is absent, so it runs locally and not in CI.
+repository is absent or `gh` cannot read it (it is private), so it runs locally and not in CI.
 
 ## Changesets
 
