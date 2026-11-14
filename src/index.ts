@@ -78,7 +78,8 @@ async function run(): Promise<void> {
         repo,
         commit_sha: sha,
       });
-      return data[0]?.number ?? null;
+      // Open PRs whose branch contains the commit are listed too; only a merged one shipped it.
+      return data.find((pr) => pr.merged_at !== null)?.number ?? null;
     },
   });
 
