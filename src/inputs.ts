@@ -1,4 +1,4 @@
-import type { PublishedPackage } from './types.js';
+import type { CommentOn, PublishedPackage, ResolveVia } from './types.js';
 
 function isPublishedPackage(value: unknown): value is PublishedPackage {
   return (
@@ -31,8 +31,12 @@ function parsePublished(raw: string): Array<PublishedPackage> {
   return packages;
 }
 
-const RESOLVE_VIA = ['auto', 'changesets', 'changelog'] as const;
-const COMMENT_ON = ['both', 'prs', 'issues'] as const;
+const RESOLVE_VIA = [
+  'auto',
+  'changesets',
+  'changelog',
+] as const satisfies ReadonlyArray<ResolveVia>;
+const COMMENT_ON = ['both', 'prs', 'issues'] as const satisfies ReadonlyArray<CommentOn>;
 
 /** Narrow a raw input to one of `allowed`, failing with a message that names the options. */
 function oneOf<Option extends string>(

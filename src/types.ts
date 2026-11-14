@@ -16,4 +16,6 @@ type Released = Map<number, ReleaseEntry>;
 
 type ResolveVia = 'auto' | 'changesets' | 'changelog';
 
-export type { PublishedPackage, Released, ReleaseEntry, ResolveVia };
+type CommentOn = 'both' | 'prs' | 'issues';
+
+export type { CommentOn, PublishedPackage, Released, ReleaseEntry, ResolveVia };
