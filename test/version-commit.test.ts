@@ -1,7 +1,10 @@
+import { execFileSync } from 'node:child_process';
+
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { collect } from '../src/collect.js';
 
+import { openRepo } from './fixtures/git.js';
 import type { Repo } from './fixtures/git.js';
 import { checkout, singlePackageBase } from './fixtures/repos.js';
 
@@ -34,6 +37,17 @@ beforeEach(() => {
 describe('a tag that names the version commit', () => {
   it('resolves the changesets that commit consumed', async () => {
     repo.tag('v1.0.1');
+
+    expect(await shipped()).toEqual({ 42: ['fixture@1.0.1'] });
+  });
+});
+
+describe('a shallow clone', () => {
+  it('deepens before deciding the release commit has no parent', async () => {
+    repo.tag('v1.0.1');
+    const origin = repo.cwd;
+    repo = openRepo(`${origin}-shallow`);
+    execFileSync('git', ['clone', '--quiet', '--depth=1', `file://${origin}`, repo.cwd]);
 
     expect(await shipped()).toEqual({ 42: ['fixture@1.0.1'] });
   });
