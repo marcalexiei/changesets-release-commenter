@@ -12,6 +12,8 @@ interface CollectOptions {
   cwd: string;
   published: ReadonlyArray<PublishedPackage>;
   resolveVia: ResolveVia;
+  /** From `resolveTags`, which the caller also needs to link each release. */
+  tags: ReadonlyMap<string, string>;
   /** Also report packages republished only because they depend on a directly-changed one. */
   includeDependents: boolean;
   /** commit sha -> PR number, or null when the commit has no PR. */
@@ -371,12 +373,12 @@ async function collectDirect(pass: Pass): Promise<Released> {
 }
 
 async function collect(options: CollectOptions): Promise<Released> {
-  const { cwd, published } = options;
+  const { cwd, published, tags } = options;
 
   const versions = new Map(published.map((pkg) => [pkg.name, `${pkg.name}@${pkg.version}`]));
   const refFor: RefFor = (name) => versions.get(name) ?? null;
 
-  const releaseSha = await resolveReleaseSha(cwd, published, await resolveTags(cwd, published));
+  const releaseSha = await resolveReleaseSha(cwd, published, tags);
 
   // Before the root check: a commit on the shallow boundary lists no parents either.
   if (await isRepoShallow({ cwd })) {
