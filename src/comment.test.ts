@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { FOOTER, markerFor, releaseUrl, renderBody } from './comment.js';
+import { alreadyCommented, FOOTER, markerFor, releaseUrl, renderBody } from './comment.js';
 import type { RenderOptions } from './comment.js';
 
 const base: RenderOptions = {
@@ -23,6 +23,30 @@ describe('releaseUrl', () => {
 describe('markerFor', () => {
   it('is stable regardless of package order', () => {
     expect(markerFor('m', ['b@2', 'a@1'])).toBe(markerFor('m', ['a@1', 'b@2']));
+  });
+});
+
+describe('alreadyCommented', () => {
+  const id = 'changesets-release-commenter';
+
+  it('matches a marker that also lists dependents', () => {
+    expect(alreadyCommented([`x\n\n${markerFor(id, ['a@1', 'b@1'])}`], id, ['a@1'])).toBe(true);
+  });
+
+  it('matches a marker posted before dependents were listed', () => {
+    expect(alreadyCommented([markerFor(id, ['a@1'])], id, ['a@1'])).toBe(true);
+  });
+
+  it('posts again when a direct package is missing from every marker', () => {
+    expect(alreadyCommented([markerFor(id, ['a@1'])], id, ['a@1', 'b@1'])).toBe(false);
+  });
+
+  it('ignores markers with another id', () => {
+    expect(alreadyCommented([markerFor('other', ['a@1'])], id, ['a@1'])).toBe(false);
+  });
+
+  it('ignores a version that only shares a prefix', () => {
+    expect(alreadyCommented([markerFor(id, ['a@1.0.10'])], id, ['a@1.0.1'])).toBe(false);
   });
 });
 
