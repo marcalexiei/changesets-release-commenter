@@ -5,7 +5,8 @@ import type { ReleaseEntry, Released } from './types.js';
 interface CommentApi {
   listCommentBodies: (issue: number) => Promise<Array<string>>;
   createComment: (issue: number, body: string) => Promise<void>;
-  closingIssues: (pr: number) => Promise<Array<number>>;
+  /** `repo` is the issue's `owner/name`: a PR can close issues in other repositories. */
+  closingIssues: (pr: number) => Promise<Array<{ number: number; repo: string }>>;
 }
 
 interface CommentOptions {
@@ -124,7 +125,14 @@ async function groupIssues(options: CommentOptions): Promise<Map<number, IssueEn
     if (closed.length === 0) {
       info(`  PR #${pr} closes no issues`);
     }
-    for (const issue of closed) {
+    const local = closed.filter(({ number: issue, repo }) => {
+      const here = repo.toLowerCase() === options.repo.toLowerCase();
+      if (!here) {
+        info(`  PR #${pr} closes ${repo}#${issue}, outside this repository — skipping`);
+      }
+      return here;
+    });
+    for (const { number: issue } of local) {
       info(`  PR #${pr} closes issue #${issue}`);
       const entry = issues.get(issue) ?? {
         direct: new Set<string>(),

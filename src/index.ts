@@ -113,17 +113,24 @@ async function run(): Promise<void> {
     closingIssues: async (pr) => {
       const res = await octokit.graphql<{
         repository: {
-          pullRequest: { closingIssuesReferences: { nodes: Array<{ number: number }> } };
+          pullRequest: {
+            closingIssuesReferences: {
+              nodes: Array<{ number: number; repository: { nameWithOwner: string } }>;
+            };
+          };
         };
       }>(
         `query($owner:String!,$repo:String!,$pr:Int!){
            repository(owner:$owner,name:$repo){
-             pullRequest(number:$pr){ closingIssuesReferences(first:50){ nodes{ number } } }
+             pullRequest(number:$pr){ closingIssuesReferences(first:50){ nodes{ number repository{ nameWithOwner } } } }
            }
          }`,
         { owner, repo, pr },
       );
-      return res.repository.pullRequest.closingIssuesReferences.nodes.map((node) => node.number);
+      return res.repository.pullRequest.closingIssuesReferences.nodes.map((node) => ({
+        number: node.number,
+        repo: node.repository.nameWithOwner,
+      }));
     },
   };
 
