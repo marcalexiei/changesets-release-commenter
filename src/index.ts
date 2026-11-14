@@ -48,7 +48,7 @@ async function run(): Promise<void> {
 
   if (released.size > 0) {
     info('resolved:');
-    for (const [pr, entry] of released) {
+    for (const [pr, entry] of [...released].toSorted((one, two) => one[0] - two[0])) {
       const extra =
         entry.dependents.size === 0 ? '' : ` (+${String(entry.dependents.size)} dependent)`;
       info(`  PR #${pr} -> ${[...entry.direct].toSorted().join(', ')}${extra}`);
