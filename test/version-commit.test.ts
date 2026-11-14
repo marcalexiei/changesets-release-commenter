@@ -74,3 +74,22 @@ describe('a tag that names a commit built on top of the version commit', () => {
     expect(await shipped()).toEqual({});
   });
 });
+
+describe('a version that was never tagged', () => {
+  it('names the newest tags of the same package', async () => {
+    repo.tag('v1.0.1');
+    repo.tag('unrelated');
+    const published = [{ name: 'fixture', version: '9.9.9' }];
+
+    await expect(
+      collect({
+        cwd: repo.cwd,
+        published,
+        tags: await resolveTags(repo.cwd, published),
+        resolveVia: 'changesets',
+        includeDependents: false,
+        commitToPullRequest,
+      }),
+    ).rejects.toThrow('Tried: fixture@9.9.9, v9.9.9. Newest tags for these packages: v1.0.1');
+  });
+});
