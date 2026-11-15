@@ -92,7 +92,7 @@ async function run(): Promise<void> {
     },
   };
 
-  await comment({
+  const outcomes = await comment({
     released,
     api,
     commentOn,
@@ -104,6 +104,14 @@ async function run(): Promise<void> {
     repo: `${owner}/${repo}`,
     tags,
   });
+
+  const failed = outcomes.filter((outcome) => outcome.result === 'failed');
+  if (failed.length > 0) {
+    const list = failed.map((outcome) => `${outcome.kind} #${String(outcome.number)}`).join(', ');
+    throw new Error(
+      `${String(failed.length)} thread(s) failed: ${list}. Re-running retries only those.`,
+    );
+  }
 }
 
 try {
