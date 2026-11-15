@@ -1,11 +1,33 @@
-import { getBooleanInput, getInput, info, setFailed, setOutput, summary } from '@actions/core';
+import {
+  getBooleanInput,
+  getInput,
+  info,
+  setFailed,
+  setOutput,
+  summary,
+  warning,
+} from '@actions/core';
 import { context, getOctokit } from '@actions/github';
+import { retry } from '@octokit/plugin-retry';
+import { throttling } from '@octokit/plugin-throttling';
 
 import { collect, resolveTags } from './collect.js';
 import { comment } from './comment.js';
 import type { CommentApi } from './comment.js';
 import { COMMENT_ON, oneOf, parsePublished, RESOLVE_VIA } from './inputs.js';
 import { renderSummary } from './summary.js';
+
+/** Wait out a rate limit twice before giving up, so a large release does not fail on one. */
+// oxlint-disable-next-line max-params -- the throttling plugin's handler signature
+function onLimit(
+  retryAfter: number,
+  request: { method: string; url: string },
+  _octokit: unknown,
+  retryCount: number,
+): boolean {
+  warning(`Rate limited on ${request.method} ${request.url}, retrying in ${String(retryAfter)}s`);
+  return retryCount < 2;
+}
 
 async function run(): Promise<void> {
   const token = getInput('github-token', { required: true });
@@ -18,7 +40,13 @@ async function run(): Promise<void> {
     return;
   }
 
-  const octokit = getOctokit(token);
+  const octokit = getOctokit(
+    token,
+    // oxlint-disable-next-line typescript/strict-void-return -- it retries on `true`, though typed void
+    { throttle: { onRateLimit: onLimit, onSecondaryRateLimit: onLimit } },
+    retry,
+    throttling,
+  );
   const { owner, repo } = context.repo;
   const cwd = process.cwd();
 
@@ -67,7 +95,14 @@ async function run(): Promise<void> {
       return data.map((entry) => entry.body ?? '');
     },
     createComment: async (issue, body) => {
-      await octokit.rest.issues.createComment({ owner, repo, issue_number: issue, body });
+      // A 5xx after the comment was created would post it twice if retried.
+      await octokit.rest.issues.createComment({
+        owner,
+        repo,
+        issue_number: issue,
+        body,
+        request: { retries: 0 },
+      });
     },
     closingIssues: async (pr) => {
       const res = await octokit.graphql<{

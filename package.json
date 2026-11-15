@@ -21,7 +21,9 @@
     "@actions/exec": "3.0.0",
     "@actions/github": "9.1.1",
     "@changesets/git": "4.0.1",
-    "@changesets/parse": "1.0.0"
+    "@changesets/parse": "1.0.0",
+    "@octokit/plugin-retry": "8.1.1",
+    "@octokit/plugin-throttling": "11.0.5"
   },
   "devDependencies": {
     "@changesets/changelog-github": "1.0.1",
