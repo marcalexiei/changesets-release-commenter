@@ -1,10 +1,11 @@
-import { getBooleanInput, getInput, info, setFailed, setOutput } from '@actions/core';
+import { getBooleanInput, getInput, info, setFailed, setOutput, summary } from '@actions/core';
 import { context, getOctokit } from '@actions/github';
 
 import { collect, resolveTags } from './collect.js';
 import { comment } from './comment.js';
 import type { CommentApi } from './comment.js';
 import { COMMENT_ON, oneOf, parsePublished, RESOLVE_VIA } from './inputs.js';
+import { renderSummary } from './summary.js';
 
 async function run(): Promise<void> {
   const token = getInput('github-token', { required: true });
@@ -40,11 +41,11 @@ async function run(): Promise<void> {
     },
   });
 
-  const summary = [...released].map(([pr, entry]) => [
+  const output = [...released].map(([pr, entry]) => [
     pr,
     { direct: [...entry.direct].toSorted(), dependents: [...entry.dependents].toSorted() },
   ]);
-  setOutput('released', JSON.stringify(Object.fromEntries(summary)));
+  setOutput('released', JSON.stringify(Object.fromEntries(output)));
 
   if (released.size > 0) {
     info('resolved:');
@@ -104,6 +105,11 @@ async function run(): Promise<void> {
     repo: `${owner}/${repo}`,
     tags,
   });
+
+  // Only set inside a workflow run; writing without it throws.
+  if (released.size > 0 && (process.env.GITHUB_STEP_SUMMARY ?? '') !== '') {
+    await summary.addRaw(renderSummary(released, outcomes)).write();
+  }
 
   const failed = outcomes.filter((outcome) => outcome.result === 'failed');
   if (failed.length > 0) {
