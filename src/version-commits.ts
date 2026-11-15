@@ -1,4 +1,5 @@
-import { info } from '@actions/core';
+import { info, warning } from '@actions/core';
+import { isRepoShallow } from '@changesets/git';
 
 import { git, gitOrNull, gitSucceeds } from './git.js';
 import type { PublishedPackage } from './types.js';
@@ -123,9 +124,23 @@ async function resolveVersionShas(
     return explainedAny;
   };
 
+  /** A shallow clone can end before the earlier version commit; say so rather than stop silently. */
+  const endsHere = async (sha: string): Promise<boolean> => {
+    if (await gitSucceeds(['cat-file', '-e', `${sha}~1`], cwd)) {
+      return false;
+    }
+    if (unexplained.size > 0 && (await isRepoShallow({ cwd }))) {
+      warning(
+        `The shallow history ends at ${sha} before ${[...unexplained].join(', ')} reached its ` +
+          'version commit, so PRs from an earlier one may go uncredited. Use fetch-depth: 0.',
+      );
+    }
+    return true;
+  };
+
   explain(await versionBumps(cwd, first));
   const shas = [first];
-  if (unexplained.size === 0 || !(await gitSucceeds(['cat-file', '-e', `${first}~1`], cwd))) {
+  if (unexplained.size === 0 || (await endsHere(first))) {
     return shas;
   }
 
@@ -140,7 +155,7 @@ async function resolveVersionShas(
   );
   for (const sha of walk.split('\n').filter((line) => line !== '')) {
     // oxlint-disable-next-line no-await-in-loop
-    if (unexplained.size === 0 || !(await gitSucceeds(['cat-file', '-e', `${sha}~1`], cwd))) {
+    if (unexplained.size === 0 || (await endsHere(sha))) {
       break;
     }
     // oxlint-disable-next-line no-await-in-loop
