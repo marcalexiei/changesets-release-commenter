@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
 import path from 'node:path';
 
@@ -7,11 +6,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { collect, resolveTags } from '../src/collect.js';
 import type { PublishedPackage, ResolveVia } from '../src/types.js';
+import { serializeReleased } from '../src/util.js';
 import { resolveVersionShas } from '../src/version-commits.js';
 
-import { openRepo, pullRequestFromSubject } from './fixtures/git.js';
+import { pullRequestFromSubject } from './fixtures/git.js';
 import type { Repo } from './fixtures/git.js';
-import { checkout, workspaceBase } from './fixtures/repos.js';
+import { checkout, SERVER, shallowClone, workspaceBase } from './fixtures/repos.js';
 
 /**
  * The workspace's version commit is left unpublished because another changeset landed first, as
@@ -23,14 +23,12 @@ vi.mock(import('@actions/core'), async (importOriginal) => ({
   warning: vi.fn<(message: string | Error) => void>(),
 }));
 
-const SERVER = 'https://github.com/o/r';
-
 let repo: Repo;
 
 const shipped = async (
   published: ReadonlyArray<PublishedPackage>,
   resolveVia: ResolveVia,
-): Promise<Record<string, { direct: Array<string>; dependents: Array<string> }>> => {
+): Promise<ReturnType<typeof serializeReleased>> => {
   const released = await collect({
     cwd: repo.cwd,
     published,
@@ -39,12 +37,7 @@ const shipped = async (
     includeDependents: true,
     commitToPullRequest: pullRequestFromSubject(repo),
   });
-  return Object.fromEntries(
-    [...released].map(([pr, entry]) => [
-      pr,
-      { direct: [...entry.direct].toSorted(), dependents: [...entry.dependents].toSorted() },
-    ]),
-  );
+  return serializeReleased(released);
 };
 
 beforeEach(() => {
@@ -99,19 +92,26 @@ describe('a publish that ships two version commits', () => {
 });
 
 describe('a shallow clone that ends between the two version commits', () => {
-  it('warns that an earlier version commit may be missing', async () => {
-    const origin = repo.cwd;
-    const shallow = openRepo(`${origin}-shallow`);
-    execFileSync('git', ['clone', '--quiet', '--depth=2', `file://${origin}`, shallow.cwd]);
+  const published = [
+    { name: 'fixture-utils', version: '1.1.0' },
+    { name: 'fixture-plugin-a', version: '1.0.2' },
+  ];
+
+  it('deepens to reach the earlier one', async () => {
+    const shallow = shallowClone(repo, 2);
+    const head = shallow.git('rev-parse', 'HEAD').trim();
+    const earlier = repo.git('rev-parse', 'HEAD~2').trim();
+
+    expect(await resolveVersionShas(shallow.cwd, head, published)).toEqual([head, earlier]);
+  });
+
+  it('warns when it cannot deepen', async () => {
+    const shallow = shallowClone(repo, 2);
+    shallow.git('remote', 'remove', 'origin');
     const head = shallow.git('rev-parse', 'HEAD').trim();
     vi.mocked(warning).mockClear();
 
-    const shas = await resolveVersionShas(shallow.cwd, head, [
-      { name: 'fixture-utils', version: '1.1.0' },
-      { name: 'fixture-plugin-a', version: '1.0.2' },
-    ]);
-
-    expect(shas).toEqual([head]);
+    expect(await resolveVersionShas(shallow.cwd, head, published)).toEqual([head]);
     expect(vi.mocked(warning)).toHaveBeenCalledWith(
       expect.stringContaining('before fixture-utils reached its version commit'),
     );

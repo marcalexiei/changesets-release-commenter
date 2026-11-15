@@ -1,12 +1,9 @@
-import { execFileSync } from 'node:child_process';
-
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { collect, resolveTags } from '../src/collect.js';
 
-import { openRepo } from './fixtures/git.js';
 import type { Repo } from './fixtures/git.js';
-import { checkout, singlePackageBase } from './fixtures/repos.js';
+import { checkout, shallowClone, singlePackageBase } from './fixtures/repos.js';
 
 /**
  * A repository shaped like one that ships a built artifact: the version commit consumes the
@@ -19,8 +16,8 @@ let repo: Repo;
 const commitToPullRequest = async (): Promise<number | null> => Promise.resolve(42);
 
 /** The `name@version` list each PR shipped in, as a plain object the assertions can read. */
-const shipped = async (): Promise<Record<string, Array<string>>> => {
-  const published = [{ name: 'fixture', version: '1.0.1' }];
+const shipped = async (version = '1.0.1'): Promise<Record<string, Array<string>>> => {
+  const published = [{ name: 'fixture', version }];
   const released = await collect({
     cwd: repo.cwd,
     published,
@@ -47,9 +44,7 @@ describe('a tag that names the version commit', () => {
 describe('a shallow clone', () => {
   it('deepens before deciding the release commit has no parent', async () => {
     repo.tag('v1.0.1');
-    const origin = repo.cwd;
-    repo = openRepo(`${origin}-shallow`);
-    execFileSync('git', ['clone', '--quiet', '--depth=1', `file://${origin}`, repo.cwd]);
+    repo = shallowClone(repo, 1);
 
     expect(await shipped()).toEqual({ 42: ['fixture@1.0.1'] });
   });
@@ -64,14 +59,22 @@ describe('a tag that names a commit built on top of the version commit', () => {
     expect(await shipped()).toEqual({ 42: ['fixture@1.0.1'] });
   });
 
-  it('gives up rather than reaching an unrelated earlier release', async () => {
+  it('walks back past several commits to the version commit', async () => {
     for (let index = 0; index < 8; index += 1) {
       repo.write(`filler-${String(index)}.txt`, 'filler\n');
       repo.commit(`chore: filler ${String(index)}`);
     }
     repo.tag('v1.0.1');
 
-    expect(await shipped()).toEqual({});
+    expect(await shipped()).toEqual({ 42: ['fixture@1.0.1'] });
+  });
+
+  it('stops at a version commit that bumped nothing to the published version', async () => {
+    repo.write('filler.txt', 'filler\n');
+    repo.commit('chore: filler');
+    repo.tag('v1.0.2');
+
+    expect(await shipped('1.0.2')).toEqual({});
   });
 });
 
