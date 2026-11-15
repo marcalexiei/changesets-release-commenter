@@ -262,13 +262,9 @@ async function collectDependents(pass: Pass, released: Released): Promise<void> 
     return;
   }
 
-  const prBySha = new Map<string, number | null>();
   for (const { path, sha } of bumps) {
-    if (!prBySha.has(sha)) {
-      // oxlint-disable-next-line no-await-in-loop
-      prBySha.set(sha, await options.commitToPullRequest(sha));
-    }
-    const pr = prBySha.get(sha) ?? null;
+    // oxlint-disable-next-line no-await-in-loop
+    const pr = await options.commitToPullRequest(sha);
     if (pr !== null) {
       // oxlint-disable-next-line no-await-in-loop
       const ref = await refForChangelog(pass, path);
@@ -316,7 +312,23 @@ async function collectDirect(pass: Pass): Promise<Released> {
   return collectViaChangelog(pass);
 }
 
-async function collect(options: CollectOptions): Promise<Released> {
+/** One API call per commit for the whole run: a changeset's commit usually also bumped its dependents. */
+function cachedLookup(
+  lookup: CollectOptions['commitToPullRequest'],
+): CollectOptions['commitToPullRequest'] {
+  const cache = new Map<string, Promise<number | null>>();
+  return async (sha) => {
+    const hit = cache.get(sha) ?? lookup(sha);
+    cache.set(sha, hit);
+    return hit;
+  };
+}
+
+async function collect(uncached: CollectOptions): Promise<Released> {
+  const options = {
+    ...uncached,
+    commitToPullRequest: cachedLookup(uncached.commitToPullRequest),
+  };
   const { cwd, published, tags } = options;
 
   const versions = new Map(published.map((pkg) => [pkg.name, `${pkg.name}@${pkg.version}`]));
