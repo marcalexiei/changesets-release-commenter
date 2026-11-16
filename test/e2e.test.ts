@@ -114,6 +114,24 @@ describe('a release, from the repository to the comments it posts', () => {
     expect([...api.posted.keys()].toSorted((one, two) => one - two)).toEqual([5, 6, 99]);
   });
 
+  it('looks up each commit once, though a changeset commit also bumps its dependents', async () => {
+    const looked: Array<string> = [];
+    const lookup = pullRequestFromSubject(repo);
+    await collect({
+      cwd: repo.cwd,
+      published: PUBLISHED,
+      tags: await resolveTags(repo.cwd, PUBLISHED),
+      resolveVia: 'changesets',
+      includeDependents: true,
+      commitToPullRequest: async (sha) => {
+        looked.push(sha);
+        return lookup(sha);
+      },
+    });
+    expect(looked).toHaveLength(2);
+    expect(new Set(looked).size).toBe(2);
+  });
+
   it('resolves the same packages through either route', async () => {
     const viaChangelog = await collect({
       cwd: repo.cwd,
