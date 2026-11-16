@@ -13,6 +13,7 @@ async function run(): Promise<void> {
   const commentOn = oneOf(COMMENT_ON, getInput('comment-on'), 'comment-on');
   if (published.length === 0) {
     info('published-packages is empty — nothing was released.');
+    setOutput('released', '{}');
     return;
   }
 
