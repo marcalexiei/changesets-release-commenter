@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { collect } from '../src/collect.js';
+import { collect, resolveTags } from '../src/collect.js';
 
 import { openRepo } from './fixtures/git.js';
 import type { Repo } from './fixtures/git.js';
@@ -20,9 +20,11 @@ const commitToPullRequest = async (): Promise<number | null> => Promise.resolve(
 
 /** The `name@version` list each PR shipped in, as a plain object the assertions can read. */
 const shipped = async (): Promise<Record<string, Array<string>>> => {
+  const published = [{ name: 'fixture', version: '1.0.1' }];
   const released = await collect({
     cwd: repo.cwd,
-    published: [{ name: 'fixture', version: '1.0.1' }],
+    published,
+    tags: await resolveTags(repo.cwd, published),
     resolveVia: 'changesets',
     includeDependents: false,
     commitToPullRequest,

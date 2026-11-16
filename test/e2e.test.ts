@@ -55,6 +55,7 @@ describe('a release, from the repository to the comments it posts', () => {
     released = await collect({
       cwd: repo.cwd,
       published: PUBLISHED,
+      tags: await resolveTags(repo.cwd, PUBLISHED),
       resolveVia: 'changesets',
       includeDependents: true,
       commitToPullRequest: pullRequestFromSubject(repo),
@@ -117,6 +118,7 @@ describe('a release, from the repository to the comments it posts', () => {
     const viaChangelog = await collect({
       cwd: repo.cwd,
       published: PUBLISHED,
+      tags: await resolveTags(repo.cwd, PUBLISHED),
       resolveVia: 'changelog',
       includeDependents: true,
       commitToPullRequest: pullRequestFromSubject(repo),

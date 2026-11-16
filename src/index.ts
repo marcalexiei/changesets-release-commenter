@@ -67,9 +67,12 @@ async function run(): Promise<void> {
   const { owner, repo } = context.repo;
   const cwd = process.cwd();
 
+  const tags = await resolveTags(cwd, published);
+
   const released = await collect({
     cwd,
     published,
+    tags,
     resolveVia,
     includeDependents: getBooleanInput('include-dependents'),
     commitToPullRequest: async (sha) => {
@@ -145,7 +148,7 @@ async function run(): Promise<void> {
     footer: getBooleanInput('footer'),
     serverUrl: process.env.GITHUB_SERVER_URL ?? 'https://github.com',
     repo: `${owner}/${repo}`,
-    tags: await resolveTags(cwd, published),
+    tags,
   });
 }
 

@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 // Local-only: drives collect() against the playground checkout when it is present.
 import { describe, expect, it } from 'vitest';
 
-import { collect } from '../src/collect.js';
+import { collect, resolveTags } from '../src/collect.js';
 
 const cwd = `${process.env.HOME}/development/changesets-release-commenter-playground`;
 const published = [
@@ -32,6 +32,7 @@ describe.runIf(existsSync(cwd))('collect against the playground', () => {
       const released = await collect({
         cwd,
         published,
+        tags: await resolveTags(cwd, published),
         resolveVia,
         includeDependents: false,
         commitToPullRequest,
