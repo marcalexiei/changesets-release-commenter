@@ -45,7 +45,7 @@ inputs:
 
 outputs:
   released:
-    description: 'JSON object mapping PR number to the `name@version` list it shipped in.'
+    description: 'JSON object mapping each PR number to `{ "direct": [...], "dependents": [...] }`, the `name@version` lists it shipped in.'
 
 runs:
   using: 'node24'
