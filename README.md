@@ -77,7 +77,7 @@ jobs:
         with:
           fetch-depth: 0 # the action reads the history before the release commit
 
-      - uses: marcalexiei/changesets-release-commenter@97096fbe9cde74fcae784df963274998e0090a7c # v0.3.1
+      - uses: marcalexiei/changesets-release-commenter@05af9622283286a660465ac50f552b7f4151377e # v0.4.0
         with:
           published-packages: ${{ needs.release.outputs.publishedPackages }}
 ```
