@@ -14,9 +14,15 @@ const PUBLISHED = [
   { name: 'fixture-plugin-a', version: '1.0.1' },
 ];
 
-/** PR 5 closes issue 99; PR 6 closes nothing. */
+/** PR 5 closes issue 99 here and issue 7 in another repository; PR 6 closes nothing. */
 const CLOSING = new Map([
-  [5, [99]],
+  [
+    5,
+    [
+      { number: 99, repo: 'o/r' },
+      { number: 7, repo: 'other/repo' },
+    ],
+  ],
   [6, []],
 ]);
 
@@ -96,6 +102,10 @@ describe('a release, from the repository to the comments it posts', () => {
   it('names the PR that fixed the issue it closes', () => {
     expect(api.posted.get(99)?.[0]).toContain('🚀 Fixed by #5, released in:');
     expect(api.posted.get(99)?.[0]).toContain('- [`fixture-utils@1.1.0`]');
+  });
+
+  it('leaves an issue in another repository alone, rather than its namesake here', () => {
+    expect(api.posted.has(7)).toBe(false);
   });
 
   it('leaves an issue nobody closed alone', () => {
