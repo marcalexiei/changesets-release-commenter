@@ -1,12 +1,15 @@
+import { execFileSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
 import path from 'node:path';
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { warning } from '@actions/core';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { collect, resolveTags } from '../src/collect.js';
 import type { PublishedPackage, ResolveVia } from '../src/types.js';
+import { resolveVersionShas } from '../src/version-commits.js';
 
-import { pullRequestFromSubject } from './fixtures/git.js';
+import { openRepo, pullRequestFromSubject } from './fixtures/git.js';
 import type { Repo } from './fixtures/git.js';
 import { checkout, workspaceBase } from './fixtures/repos.js';
 
@@ -14,6 +17,11 @@ import { checkout, workspaceBase } from './fixtures/repos.js';
  * The workspace's version commit is left unpublished because another changeset landed first, as
  * changesets/action does while one is pending. The next version commit's publish ships both.
  */
+
+vi.mock(import('@actions/core'), async (importOriginal) => ({
+  ...(await importOriginal()),
+  warning: vi.fn<(message: string | Error) => void>(),
+}));
 
 const SERVER = 'https://github.com/o/r';
 
@@ -87,5 +95,25 @@ describe('a publish that ships two version commits', () => {
     expect(await shipped([{ name: 'fixture-plugin-a', version: '1.0.2' }], 'changesets')).toEqual({
       7: { direct: ['fixture-plugin-a@1.0.2'], dependents: [] },
     });
+  });
+});
+
+describe('a shallow clone that ends between the two version commits', () => {
+  it('warns that an earlier version commit may be missing', async () => {
+    const origin = repo.cwd;
+    const shallow = openRepo(`${origin}-shallow`);
+    execFileSync('git', ['clone', '--quiet', '--depth=2', `file://${origin}`, shallow.cwd]);
+    const head = shallow.git('rev-parse', 'HEAD').trim();
+    vi.mocked(warning).mockClear();
+
+    const shas = await resolveVersionShas(shallow.cwd, head, [
+      { name: 'fixture-utils', version: '1.1.0' },
+      { name: 'fixture-plugin-a', version: '1.0.2' },
+    ]);
+
+    expect(shas).toEqual([head]);
+    expect(vi.mocked(warning)).toHaveBeenCalledWith(
+      expect.stringContaining('before fixture-utils reached its version commit'),
+    );
   });
 });
