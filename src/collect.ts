@@ -79,13 +79,17 @@ async function resolveReleaseSha(
     }
   }
 
+  // The newest tags of the same packages, which is where a wrong version shows.
+  const patterns = [...new Set(published.flatMap((pkg) => [`${pkg.name}@*`, 'v[0-9]*']))];
+  const listed = await git(['tag', '--list', '--sort=-version:refname', ...patterns], cwd);
+  const nearest = listed.split('\n').filter((line) => line !== '');
   const all = await getAllTags(cwd);
-  const known = [...all].slice(0, 10).join(', ');
-  throw new Error(
-    `No tag from published-packages resolves to a commit. ` +
-      `Tried: ${published.flatMap((pkg) => tagCandidates(pkg)).join(', ')}. ` +
-      `Repository has ${String(all.size)} tag(s): ${known}`,
-  );
+  const hint =
+    nearest.length === 0
+      ? `Repository has ${String(all.size)} tag(s), none for these packages.`
+      : `Newest tags for these packages: ${nearest.slice(0, 10).join(', ')}`;
+  const tried = published.flatMap((pkg) => tagCandidates(pkg)).join(', ');
+  throw new Error(`No tag from published-packages resolves to a commit. Tried: ${tried}. ${hint}`);
 }
 
 function entryFor(released: Released, pr: number): ReleaseEntry {
