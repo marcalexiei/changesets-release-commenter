@@ -378,16 +378,16 @@ async function collect(options: CollectOptions): Promise<Released> {
 
   const releaseSha = await resolveReleaseSha(cwd, published, await resolveTags(cwd, published));
 
+  // Before the root check: a commit on the shallow boundary lists no parents either.
+  if (await isRepoShallow({ cwd })) {
+    info('Shallow clone — deepening to reach the release commit history.');
+    await deepenCloneBy({ by: 50, cwd });
+  }
+
   const revList = await git(['rev-list', '--parents', '-n1', releaseSha], cwd);
   if (revList.split(/\s+/u).length <= 1) {
     info('Release commit is the repository root — no earlier state to compare against.');
     return new Map();
-  }
-
-  // A shallow clone can be deepened rather than failing the run.
-  if (await isRepoShallow({ cwd })) {
-    info('Shallow clone — deepening to reach the release commit history.');
-    await deepenCloneBy({ by: 50, cwd });
   }
 
   if (!(await gitSucceeds(['cat-file', '-e', `${releaseSha}~1`], cwd))) {
