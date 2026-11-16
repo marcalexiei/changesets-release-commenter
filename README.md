@@ -138,6 +138,10 @@ Re-running is a no-op: each comment carries a marker holding its package set, an
 marker already names every directly-changed package is skipped. Dependents are left out of that
 match, so turning `include-dependents` on or off does not post again.
 
+The job summary lists what each PR shipped in and what happened on each thread: commented,
+skipped, not posted in a dry run, or failed. One failed thread does not stop the others; the run
+fails at the end, and re-running retries only those.
+
 ## Limits
 
 - `closingIssuesReferences` only sees closing keywords in the PR body. Issues closed by hand, or

@@ -252,4 +252,4 @@ async function comment(options: CommentOptions): Promise<Array<Outcome>> {
 }
 
 export { alreadyCommented, comment, FOOTER, markerFor, releaseUrl, renderBody };
-export type { CommentApi, RenderOptions };
+export type { CommentApi, Outcome, RenderOptions };
