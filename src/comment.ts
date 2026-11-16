@@ -1,6 +1,6 @@
 import { info } from '@actions/core';
 
-import type { ReleaseEntry, Released } from './types.js';
+import type { CommentOn, ReleaseEntry, Released } from './types.js';
 
 interface CommentApi {
   listCommentBodies: (issue: number) => Promise<Array<string>>;
@@ -12,7 +12,7 @@ interface CommentApi {
 interface CommentOptions {
   released: Released;
   api: CommentApi;
-  commentOn: 'both' | 'prs' | 'issues';
+  commentOn: CommentOn;
   markerId: string;
   dryRun: boolean;
   linkReleases: boolean;
