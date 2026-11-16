@@ -16,6 +16,7 @@ import { comment } from './comment.js';
 import type { CommentApi } from './comment.js';
 import { COMMENT_ON, oneOf, parsePublished, RESOLVE_VIA } from './inputs.js';
 import { renderSummary } from './summary.js';
+import { byNumber, errorMessage, serializeReleased } from './util.js';
 
 /** Wait out a rate limit twice before giving up, so a large release does not fail on one. */
 // oxlint-disable-next-line max-params -- the throttling plugin's handler signature
@@ -69,15 +70,11 @@ async function run(): Promise<void> {
     },
   });
 
-  const output = [...released].map(([pr, entry]) => [
-    pr,
-    { direct: [...entry.direct].toSorted(), dependents: [...entry.dependents].toSorted() },
-  ]);
-  setOutput('released', JSON.stringify(Object.fromEntries(output)));
+  setOutput('released', JSON.stringify(serializeReleased(released)));
 
   if (released.size > 0) {
     info('resolved:');
-    for (const [pr, entry] of [...released].toSorted((one, two) => one[0] - two[0])) {
+    for (const [pr, entry] of byNumber(released)) {
       const extra =
         entry.dependents.size === 0 ? '' : ` (+${String(entry.dependents.size)} dependent)`;
       info(`  PR #${pr} -> ${[...entry.direct].toSorted().join(', ')}${extra}`);
@@ -158,5 +155,5 @@ async function run(): Promise<void> {
 try {
   await run();
 } catch (error: unknown) {
-  setFailed(error instanceof Error ? error.message : String(error));
+  setFailed(errorMessage(error));
 }

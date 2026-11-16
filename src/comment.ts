@@ -1,6 +1,7 @@
 import { info, warning } from '@actions/core';
 
 import type { CommentOn, ReleaseEntry, Released } from './types.js';
+import { byNumber, errorMessage } from './util.js';
 
 interface CommentApi {
   listCommentBodies: (issue: number) => Promise<Array<string>>;
@@ -37,18 +38,17 @@ interface Outcome {
 }
 
 interface PostRequest {
-  number: number;
-  body: string;
-  /** The packages the change itself named: what decides whether the thread already has it. */
-  direct: ReadonlyArray<string>;
   kind: Outcome['kind'];
+  number: number;
+  lead: string;
+  entry: ReleaseEntry;
 }
 
 /** Credits the action, so a reader can tell what posted the comment and turn it off. */
 const FOOTER =
   '<sub>🤖 Posted by [changesets-release-commenter](https://github.com/marcalexiei/changesets-release-commenter)</sub>';
 
-/** The marker carries the exact package set, so re-running the same release is a no-op. */
+/** The marker carries the package set, so re-running the same release is a no-op. */
 function markerFor(markerId: string, refs: ReadonlyArray<string>): string {
   return `<!-- ${markerId}:${refs.toSorted().join(',')} -->`;
 }
@@ -69,8 +69,11 @@ function alreadyCommented(
       .slice(1)
       .some((rest) => {
         const end = rest.indexOf(' -->');
-        const refs = new Set(end === -1 ? [] : rest.slice(0, end).split(','));
-        return end !== -1 && direct.every((ref) => refs.has(ref));
+        if (end === -1) {
+          return false;
+        }
+        const refs = new Set(rest.slice(0, end).split(','));
+        return direct.every((ref) => refs.has(ref));
       }),
   );
 }
@@ -116,23 +119,20 @@ function renderBody(options: RenderOptions, lead: string, entry: ReleaseEntry): 
   return `${sections.join('\n\n')}\n\n${marker}`;
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 async function post(options: CommentOptions, request: PostRequest): Promise<Outcome> {
-  const { kind, number } = request;
+  const { kind, number, entry } = request;
   try {
     const existing = await options.api.listCommentBodies(number);
-    if (alreadyCommented(existing, options.markerId, request.direct)) {
+    if (alreadyCommented(existing, options.markerId, [...entry.direct])) {
       info(`  ${kind} #${number}: already commented, skipping`);
       return { kind, number, result: 'already-commented' };
     }
+    const body = renderBody(options, request.lead, entry);
     if (options.dryRun) {
-      info(`  ${kind} #${number}: DRY RUN, would post:\n${request.body}`);
+      info(`  ${kind} #${number}: DRY RUN, would post:\n${body}`);
       return { kind, number, result: 'dry-run' };
     }
-    await options.api.createComment(number, request.body);
+    await options.api.createComment(number, body);
     info(`  ${kind} #${number}: commented`);
     return { kind, number, result: 'commented' };
   } catch (error: unknown) {
@@ -145,71 +145,60 @@ async function post(options: CommentOptions, request: PostRequest): Promise<Outc
 async function commentOnPullRequests(options: CommentOptions): Promise<Array<Outcome>> {
   info('Commenting on PRs:');
   const outcomes: Array<Outcome> = [];
-  for (const [pr, entry] of [...options.released].toSorted((one, two) => one[0] - two[0])) {
-    const body = renderBody(options, '🚀 This pull request has been released in:', entry);
+  for (const [pr, entry] of byNumber(options.released)) {
+    const lead = '🚀 This pull request has been released in:';
     // Serialized on purpose: parallel posting would trip secondary rate limits.
     // oxlint-disable-next-line no-await-in-loop
-    outcomes.push(await post(options, { number: pr, body, direct: [...entry.direct], kind: 'PR' }));
+    outcomes.push(await post(options, { kind: 'PR', number: pr, lead, entry }));
   }
   return outcomes;
 }
 
-interface IssueEntry {
-  direct: Set<string>;
-  dependents: Set<string>;
+interface IssueEntry extends ReleaseEntry {
   prs: Set<number>;
 }
 
-/** A PR whose closing issues could not be read: its issues go uncommented, reported as a failure. */
-async function closingIssuesOf(
-  options: CommentOptions,
-  pr: number,
-  failures: Array<Outcome>,
-): Promise<Array<{ number: number; repo: string }>> {
-  try {
-    return await options.api.closingIssues(pr);
-  } catch (error: unknown) {
-    const message = `reading the issues it closes: ${errorMessage(error)}`;
-    warning(`PR #${pr}: ${message}`);
-    failures.push({ kind: 'PR', number: pr, result: 'failed', error: message });
-    return [];
-  }
-}
-
-/** issue -> the packages and PRs that closed it, unioned across every PR in the release. */
+/**
+ * issue -> the packages and PRs that closed it, unioned across every PR in the release. A PR
+ * whose closing issues cannot be read is reported in `failures`, and its issues go uncommented.
+ */
 async function groupIssues(
   options: CommentOptions,
   failures: Array<Outcome>,
 ): Promise<Map<number, IssueEntry>> {
   const issues = new Map<number, IssueEntry>();
   for (const [pr, released] of options.released) {
-    // oxlint-disable-next-line no-await-in-loop
-    const closed = await closingIssuesOf(options, pr, failures);
-    if (closed.length === 0) {
-      info(`  PR #${pr} closes no issues`);
+    let closed: Array<{ number: number; repo: string }> = [];
+    try {
+      // oxlint-disable-next-line no-await-in-loop
+      closed = await options.api.closingIssues(pr);
+      if (closed.length === 0) {
+        info(`  PR #${pr} closes no issues`);
+      }
+    } catch (error: unknown) {
+      const message = `reading the issues it closes: ${errorMessage(error)}`;
+      warning(`PR #${pr}: ${message}`);
+      failures.push({ kind: 'PR', number: pr, result: 'failed', error: message });
     }
-    const local = closed.filter(({ number: issue, repo }) => {
-      const here = repo.toLowerCase() === options.repo.toLowerCase();
-      if (!here) {
+    for (const { number: issue, repo } of closed) {
+      if (repo.toLowerCase() === options.repo.toLowerCase()) {
+        info(`  PR #${pr} closes issue #${issue}`);
+        const entry = issues.get(issue) ?? {
+          direct: new Set<string>(),
+          dependents: new Set<string>(),
+          prs: new Set<number>(),
+        };
+        for (const ref of released.direct) {
+          entry.direct.add(ref);
+        }
+        for (const ref of released.dependents) {
+          entry.dependents.add(ref);
+        }
+        entry.prs.add(pr);
+        issues.set(issue, entry);
+      } else {
         info(`  PR #${pr} closes ${repo}#${issue}, outside this repository — skipping`);
       }
-      return here;
-    });
-    for (const { number: issue } of local) {
-      info(`  PR #${pr} closes issue #${issue}`);
-      const entry = issues.get(issue) ?? {
-        direct: new Set<string>(),
-        dependents: new Set<string>(),
-        prs: new Set<number>(),
-      };
-      for (const ref of released.direct) {
-        entry.direct.add(ref);
-      }
-      for (const ref of released.dependents) {
-        entry.dependents.add(ref);
-      }
-      entry.prs.add(pr);
-      issues.set(issue, entry);
     }
   }
   return issues;
@@ -222,15 +211,14 @@ async function commentOnIssues(options: CommentOptions): Promise<Array<Outcome>>
   if (issues.size > 0) {
     info('Commenting on issues:');
   }
-  for (const [issue, entry] of [...issues].toSorted((one, two) => one[0] - two[0])) {
+  for (const [issue, entry] of byNumber(issues)) {
     const by = [...entry.prs]
       .toSorted((one, two) => one - two)
       .map((pr) => `#${pr}`)
       .join(', ');
-    const body = renderBody(options, `🚀 Fixed by ${by}, released in:`, entry);
-    const request: PostRequest = { number: issue, body, direct: [...entry.direct], kind: 'issue' };
+    const lead = `🚀 Fixed by ${by}, released in:`;
     // oxlint-disable-next-line no-await-in-loop
-    outcomes.push(await post(options, request));
+    outcomes.push(await post(options, { kind: 'issue', number: issue, lead, entry }));
   }
   return outcomes;
 }

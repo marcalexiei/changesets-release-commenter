@@ -1,5 +1,6 @@
 import type { Outcome } from './comment.js';
 import type { Released } from './types.js';
+import { byNumber } from './util.js';
 
 const RESULT: Record<Outcome['result'], string> = {
   commented: 'commented',
@@ -24,9 +25,9 @@ function refs(set: ReadonlySet<string>): string {
 
 /** The job summary: what each PR shipped in, then what happened on each thread. */
 function renderSummary(released: Released, outcomes: ReadonlyArray<Outcome>): string {
-  const shipped = [...released]
-    .toSorted((one, two) => one[0] - two[0])
-    .map(([pr, entry]) => `| #${pr} | ${refs(entry.direct)} | ${refs(entry.dependents)} |`);
+  const shipped = byNumber(released).map(
+    ([pr, entry]) => `| #${pr} | ${refs(entry.direct)} | ${refs(entry.dependents)} |`,
+  );
   const threads = outcomes.map(({ kind, number, result, error }) => {
     const detail = error === undefined ? '' : `: ${cell(error)}`;
     return `| ${kind} #${number} | ${RESULT[result]}${detail} |`;

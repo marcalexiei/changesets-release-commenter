@@ -23,6 +23,12 @@ async function git(args: ReadonlyArray<string>, cwd: string): Promise<string> {
   return stdout.trim();
 }
 
+/** Same, split into non-empty lines — for listings like `diff --name-only`. */
+async function gitLines(args: ReadonlyArray<string>, cwd: string): Promise<Array<string>> {
+  const stdout = await git(args, cwd);
+  return stdout.split('\n').filter((line) => line !== '');
+}
+
 /** Same, but `null` instead of throwing — for lookups that are allowed to miss. */
 async function gitOrNull(args: ReadonlyArray<string>, cwd: string): Promise<string | null> {
   try {
@@ -42,4 +48,4 @@ async function gitSucceeds(args: ReadonlyArray<string>, cwd: string): Promise<bo
   }
 }
 
-export { git, gitOrNull, gitSucceeds };
+export { git, gitLines, gitOrNull, gitSucceeds };

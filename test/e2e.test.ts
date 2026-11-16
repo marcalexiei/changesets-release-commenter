@@ -4,6 +4,7 @@ import { collect, resolveTags } from '../src/collect.js';
 import { comment } from '../src/comment.js';
 import type { CommentApi } from '../src/comment.js';
 import type { Released } from '../src/types.js';
+import { serializeReleased } from '../src/util.js';
 
 import { pullRequestFromSubject } from './fixtures/git.js';
 import type { Repo } from './fixtures/git.js';
@@ -49,20 +50,12 @@ describe('a release, from the repository to the comments it posts', () => {
   let repo: Repo;
   let released: Released;
   let api: ReturnType<typeof recordingApi>;
+  let tags: ReadonlyMap<string, string>;
 
-  beforeAll(async () => {
-    repo = checkout(workspaceBase());
-    released = await collect({
-      cwd: repo.cwd,
-      published: PUBLISHED,
-      tags: await resolveTags(repo.cwd, PUBLISHED),
-      resolveVia: 'changesets',
-      includeDependents: true,
-      commitToPullRequest: pullRequestFromSubject(repo),
-    });
-    api = recordingApi();
-    await comment({
-      released,
+  /** Posts as the action would, against the same recording API every test shares. */
+  const postAll = async (target: Released): ReturnType<typeof comment> =>
+    comment({
+      released: target,
       api,
       commentOn: 'both',
       markerId: 'changesets-release-commenter',
@@ -71,19 +64,30 @@ describe('a release, from the repository to the comments it posts', () => {
       footer: true,
       serverUrl: 'https://github.com',
       repo: 'o/r',
-      tags: await resolveTags(repo.cwd, PUBLISHED),
+      tags,
     });
+
+  /** How many comments each thread carries. */
+  const counts = (): Map<number, number> =>
+    new Map([...api.posted].map(([key, value]) => [key, value.length]));
+
+  beforeAll(async () => {
+    repo = checkout(workspaceBase());
+    tags = await resolveTags(repo.cwd, PUBLISHED);
+    released = await collect({
+      cwd: repo.cwd,
+      published: PUBLISHED,
+      tags,
+      resolveVia: 'changesets',
+      includeDependents: true,
+      commitToPullRequest: pullRequestFromSubject(repo),
+    });
+    api = recordingApi();
+    await postAll(released);
   });
 
   it('attributes the shared package to its own PR and the consumer to both', () => {
-    expect(
-      Object.fromEntries(
-        [...released].map(([pr, entry]) => [
-          pr,
-          { direct: [...entry.direct].toSorted(), dependents: [...entry.dependents].toSorted() },
-        ]),
-      ),
-    ).toEqual({
+    expect(serializeReleased(released)).toEqual({
       5: { direct: ['fixture-utils@1.1.0'], dependents: ['fixture-plugin-a@1.0.1'] },
       6: { direct: ['fixture-plugin-a@1.0.1'], dependents: [] },
     });
@@ -120,7 +124,7 @@ describe('a release, from the repository to the comments it posts', () => {
     await collect({
       cwd: repo.cwd,
       published: PUBLISHED,
-      tags: await resolveTags(repo.cwd, PUBLISHED),
+      tags,
       resolveVia: 'changesets',
       includeDependents: true,
       commitToPullRequest: async (sha) => {
@@ -136,7 +140,7 @@ describe('a release, from the repository to the comments it posts', () => {
     const viaChangelog = await collect({
       cwd: repo.cwd,
       published: PUBLISHED,
-      tags: await resolveTags(repo.cwd, PUBLISHED),
+      tags,
       resolveVia: 'changelog',
       includeDependents: true,
       commitToPullRequest: pullRequestFromSubject(repo),
@@ -145,39 +149,17 @@ describe('a release, from the repository to the comments it posts', () => {
   });
 
   it('posts nothing the second time, because the marker is already on the thread', async () => {
-    const before = new Map([...api.posted].map(([key, value]) => [key, value.length]));
-    await comment({
-      released,
-      api,
-      commentOn: 'both',
-      markerId: 'changesets-release-commenter',
-      dryRun: false,
-      linkReleases: true,
-      footer: true,
-      serverUrl: 'https://github.com',
-      repo: 'o/r',
-      tags: await resolveTags(repo.cwd, PUBLISHED),
-    });
-    expect(new Map([...api.posted].map(([key, value]) => [key, value.length]))).toEqual(before);
+    const before = counts();
+    await postAll(released);
+    expect(counts()).toEqual(before);
   });
 
   it('posts nothing when re-run without dependents, since the direct packages match', async () => {
-    const before = new Map([...api.posted].map(([key, value]) => [key, value.length]));
+    const before = counts();
     const withoutDependents: Released = new Map(
       [...released].map(([pr, entry]) => [pr, { direct: entry.direct, dependents: new Set() }]),
     );
-    await comment({
-      released: withoutDependents,
-      api,
-      commentOn: 'both',
-      markerId: 'changesets-release-commenter',
-      dryRun: false,
-      linkReleases: true,
-      footer: true,
-      serverUrl: 'https://github.com',
-      repo: 'o/r',
-      tags: await resolveTags(repo.cwd, PUBLISHED),
-    });
-    expect(new Map([...api.posted].map(([key, value]) => [key, value.length]))).toEqual(before);
+    await postAll(withoutDependents);
+    expect(counts()).toEqual(before);
   });
 });

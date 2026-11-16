@@ -2,7 +2,7 @@ import { info } from '@actions/core';
 import { deepenCloneBy, getAllTags, isRepoShallow } from '@changesets/git';
 import { parseChangesetFile } from '@changesets/parse';
 
-import { git, gitOrNull, gitSucceeds } from './git.js';
+import { git, gitLines, gitOrNull, gitSucceeds } from './git.js';
 import type { PublishedPackage, ReleaseEntry, Released, ResolveVia } from './types.js';
 import { deletedChangesets, readManifest, resolveVersionShas } from './version-commits.js';
 
@@ -81,8 +81,7 @@ async function resolveReleaseSha(
 
   // The newest tags of the same packages, which is where a wrong version shows.
   const patterns = [...new Set(published.flatMap((pkg) => [`${pkg.name}@*`, 'v[0-9]*']))];
-  const listed = await git(['tag', '--list', '--sort=-version:refname', ...patterns], cwd);
-  const nearest = listed.split('\n').filter((line) => line !== '');
+  const nearest = await gitLines(['tag', '--list', '--sort=-version:refname', ...patterns], cwd);
   const all = await getAllTags(cwd);
   const hint =
     nearest.length === 0
@@ -243,7 +242,7 @@ async function refForChangelog(pass: Pass, path: string): Promise<string | null>
   const dir = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '.';
   const pkgJson = dir === '.' ? 'package.json' : `${dir}/package.json`;
   const raw = await gitOrNull(['show', `${versionSha}:${pkgJson}`], options.cwd);
-  const name = raw === null ? null : (readManifest(raw)?.name ?? null);
+  const name = readManifest(raw).name ?? null;
   return name === null ? null : refFor(name);
 }
 

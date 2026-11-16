@@ -40,6 +40,14 @@ function checkout(baseCwd: string): Repo {
   return openRepo(cwd);
 }
 
+/** A `--depth` clone of a fixture, as `actions/checkout` makes by default. */
+function shallowClone(origin: Repo, depth: number): Repo {
+  copies += 1;
+  const cwd = path.join(root, `shallow-${String(copies)}`);
+  origin.git('clone', '--quiet', `--depth=${String(depth)}`, `file://${origin.cwd}`, cwd);
+  return openRepo(cwd);
+}
+
 /**
  * A single-package repository stopped just after the version commit, with no tag: the tests that
  * use it place the tag themselves, which is the thing they are about.
@@ -128,4 +136,4 @@ function workspaceBase(): string {
   });
 }
 
-export { checkout, singlePackageBase, workspaceBase };
+export { checkout, SERVER, shallowClone, singlePackageBase, workspaceBase };
