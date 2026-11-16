@@ -142,4 +142,24 @@ describe('a release, from the repository to the comments it posts', () => {
     });
     expect(new Map([...api.posted].map(([key, value]) => [key, value.length]))).toEqual(before);
   });
+
+  it('posts nothing when re-run without dependents, since the direct packages match', async () => {
+    const before = new Map([...api.posted].map(([key, value]) => [key, value.length]));
+    const withoutDependents: Released = new Map(
+      [...released].map(([pr, entry]) => [pr, { direct: entry.direct, dependents: new Set() }]),
+    );
+    await comment({
+      released: withoutDependents,
+      api,
+      commentOn: 'both',
+      markerId: 'changesets-release-commenter',
+      dryRun: false,
+      linkReleases: true,
+      footer: true,
+      serverUrl: 'https://github.com',
+      repo: 'o/r',
+      tags: await resolveTags(repo.cwd, PUBLISHED),
+    });
+    expect(new Map([...api.posted].map(([key, value]) => [key, value.length]))).toEqual(before);
+  });
 });

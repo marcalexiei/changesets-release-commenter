@@ -31,7 +31,8 @@ type RenderOptions = Pick<
 interface PostRequest {
   number: number;
   body: string;
-  marker: string;
+  /** The packages the change itself named: what decides whether the thread already has it. */
+  direct: ReadonlyArray<string>;
   kind: string;
 }
 
@@ -42,6 +43,28 @@ const FOOTER =
 /** The marker carries the exact package set, so re-running the same release is a no-op. */
 function markerFor(markerId: string, refs: ReadonlyArray<string>): string {
   return `<!-- ${markerId}:${refs.toSorted().join(',')} -->`;
+}
+
+/**
+ * Whether a comment already names every one of `direct`. Dependents are left out of the match,
+ * so a change in how they resolve, or `include-dependents`, does not post the release again.
+ */
+function alreadyCommented(
+  bodies: ReadonlyArray<string>,
+  markerId: string,
+  direct: ReadonlyArray<string>,
+): boolean {
+  const prefix = `<!-- ${markerId}:`;
+  return bodies.some((body) =>
+    body
+      .split(prefix)
+      .slice(1)
+      .some((rest) => {
+        const end = rest.indexOf(' -->');
+        const refs = new Set(end === -1 ? [] : rest.slice(0, end).split(','));
+        return end !== -1 && direct.every((ref) => refs.has(ref));
+      }),
+  );
 }
 
 /**
@@ -87,7 +110,7 @@ function renderBody(options: RenderOptions, lead: string, entry: ReleaseEntry): 
 
 async function post(options: CommentOptions, request: PostRequest): Promise<void> {
   const existing = await options.api.listCommentBodies(request.number);
-  if (existing.some((body) => body.includes(request.marker))) {
+  if (alreadyCommented(existing, options.markerId, request.direct)) {
     info(`  ${request.kind} #${request.number}: already commented, skipping`);
     return;
   }
@@ -103,10 +126,9 @@ async function commentOnPullRequests(options: CommentOptions): Promise<void> {
   info('Commenting on PRs:');
   for (const [pr, entry] of [...options.released].toSorted((one, two) => one[0] - two[0])) {
     const body = renderBody(options, '🚀 This pull request has been released in:', entry);
-    const marker = markerFor(options.markerId, [...entry.direct, ...entry.dependents]);
     // Serialized on purpose: parallel posting would trip secondary rate limits.
     // oxlint-disable-next-line no-await-in-loop
-    await post(options, { number: pr, body, marker, kind: 'PR' });
+    await post(options, { number: pr, body, direct: [...entry.direct], kind: 'PR' });
   }
 }
 
@@ -164,9 +186,8 @@ async function commentOnIssues(options: CommentOptions): Promise<void> {
       .map((pr) => `#${pr}`)
       .join(', ');
     const body = renderBody(options, `🚀 Fixed by ${by}, released in:`, entry);
-    const marker = markerFor(options.markerId, [...entry.direct, ...entry.dependents]);
     // oxlint-disable-next-line no-await-in-loop
-    await post(options, { number: issue, body, marker, kind: 'issue' });
+    await post(options, { number: issue, body, direct: [...entry.direct], kind: 'issue' });
   }
 }
 
@@ -183,5 +204,5 @@ async function comment(options: CommentOptions): Promise<void> {
   }
 }
 
-export { comment, FOOTER, markerFor, releaseUrl, renderBody };
+export { alreadyCommented, comment, FOOTER, markerFor, releaseUrl, renderBody };
 export type { CommentApi, RenderOptions };

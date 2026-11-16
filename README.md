@@ -134,8 +134,9 @@ dot notation parses as a subtraction.
 4. Comments on each PR, then on the issues those PRs close, unioning the packages when several PRs
    close the same one.
 
-Re-running is a no-op: each comment carries a marker holding the exact package set, and a thread
-already carrying it is skipped.
+Re-running is a no-op: each comment carries a marker holding its package set, and a thread whose
+marker already names every directly-changed package is skipped. Dependents are left out of that
+match, so turning `include-dependents` on or off does not post again.
 
 ## Limits
 
