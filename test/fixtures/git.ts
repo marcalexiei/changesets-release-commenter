@@ -2,12 +2,20 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
-/** A fixed identity, so a fixture's commits do not depend on the machine building them. */
+/**
+ * A fixed identity and no signing, so a fixture's commits do not depend on the machine building
+ * them: a global `commit.gpgsign` would otherwise prompt a signing agent for every commit.
+ */
 const IDENTITY = {
   GIT_AUTHOR_NAME: 'Test',
   GIT_AUTHOR_EMAIL: 'test@example.com',
   GIT_COMMITTER_NAME: 'Test',
   GIT_COMMITTER_EMAIL: 'test@example.com',
+  GIT_CONFIG_COUNT: '2',
+  GIT_CONFIG_KEY_0: 'commit.gpgsign',
+  GIT_CONFIG_VALUE_0: 'false',
+  GIT_CONFIG_KEY_1: 'tag.gpgsign',
+  GIT_CONFIG_VALUE_1: 'false',
 };
 
 interface Repo {
