@@ -1,4 +1,4 @@
-import { info } from '@actions/core';
+import { info, warning } from '@actions/core';
 
 import type { CommentOn, ReleaseEntry, Released } from './types.js';
 
@@ -28,12 +28,20 @@ type RenderOptions = Pick<
   'markerId' | 'serverUrl' | 'repo' | 'linkReleases' | 'footer' | 'tags'
 >;
 
+/** What happened on one thread, so a failure does not stop the rest and can be reported after. */
+interface Outcome {
+  kind: 'PR' | 'issue';
+  number: number;
+  result: 'commented' | 'already-commented' | 'dry-run' | 'failed';
+  error?: string;
+}
+
 interface PostRequest {
   number: number;
   body: string;
   /** The packages the change itself named: what decides whether the thread already has it. */
   direct: ReadonlyArray<string>;
-  kind: string;
+  kind: Outcome['kind'];
 }
 
 /** Credits the action, so a reader can tell what posted the comment and turn it off. */
@@ -108,28 +116,42 @@ function renderBody(options: RenderOptions, lead: string, entry: ReleaseEntry): 
   return `${sections.join('\n\n')}\n\n${marker}`;
 }
 
-async function post(options: CommentOptions, request: PostRequest): Promise<void> {
-  const existing = await options.api.listCommentBodies(request.number);
-  if (alreadyCommented(existing, options.markerId, request.direct)) {
-    info(`  ${request.kind} #${request.number}: already commented, skipping`);
-    return;
-  }
-  if (options.dryRun) {
-    info(`  ${request.kind} #${request.number}: DRY RUN, would post:\n${request.body}`);
-    return;
-  }
-  await options.api.createComment(request.number, request.body);
-  info(`  ${request.kind} #${request.number}: commented`);
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
-async function commentOnPullRequests(options: CommentOptions): Promise<void> {
+async function post(options: CommentOptions, request: PostRequest): Promise<Outcome> {
+  const { kind, number } = request;
+  try {
+    const existing = await options.api.listCommentBodies(number);
+    if (alreadyCommented(existing, options.markerId, request.direct)) {
+      info(`  ${kind} #${number}: already commented, skipping`);
+      return { kind, number, result: 'already-commented' };
+    }
+    if (options.dryRun) {
+      info(`  ${kind} #${number}: DRY RUN, would post:\n${request.body}`);
+      return { kind, number, result: 'dry-run' };
+    }
+    await options.api.createComment(number, request.body);
+    info(`  ${kind} #${number}: commented`);
+    return { kind, number, result: 'commented' };
+  } catch (error: unknown) {
+    const message = errorMessage(error);
+    warning(`${kind} #${number}: ${message}`);
+    return { kind, number, result: 'failed', error: message };
+  }
+}
+
+async function commentOnPullRequests(options: CommentOptions): Promise<Array<Outcome>> {
   info('Commenting on PRs:');
+  const outcomes: Array<Outcome> = [];
   for (const [pr, entry] of [...options.released].toSorted((one, two) => one[0] - two[0])) {
     const body = renderBody(options, '🚀 This pull request has been released in:', entry);
     // Serialized on purpose: parallel posting would trip secondary rate limits.
     // oxlint-disable-next-line no-await-in-loop
-    await post(options, { number: pr, body, direct: [...entry.direct], kind: 'PR' });
+    outcomes.push(await post(options, { number: pr, body, direct: [...entry.direct], kind: 'PR' }));
   }
+  return outcomes;
 }
 
 interface IssueEntry {
@@ -138,12 +160,31 @@ interface IssueEntry {
   prs: Set<number>;
 }
 
+/** A PR whose closing issues could not be read: its issues go uncommented, reported as a failure. */
+async function closingIssuesOf(
+  options: CommentOptions,
+  pr: number,
+  failures: Array<Outcome>,
+): Promise<Array<{ number: number; repo: string }>> {
+  try {
+    return await options.api.closingIssues(pr);
+  } catch (error: unknown) {
+    const message = `reading the issues it closes: ${errorMessage(error)}`;
+    warning(`PR #${pr}: ${message}`);
+    failures.push({ kind: 'PR', number: pr, result: 'failed', error: message });
+    return [];
+  }
+}
+
 /** issue -> the packages and PRs that closed it, unioned across every PR in the release. */
-async function groupIssues(options: CommentOptions): Promise<Map<number, IssueEntry>> {
+async function groupIssues(
+  options: CommentOptions,
+  failures: Array<Outcome>,
+): Promise<Map<number, IssueEntry>> {
   const issues = new Map<number, IssueEntry>();
   for (const [pr, released] of options.released) {
     // oxlint-disable-next-line no-await-in-loop
-    const closed = await options.api.closingIssues(pr);
+    const closed = await closingIssuesOf(options, pr, failures);
     if (closed.length === 0) {
       info(`  PR #${pr} closes no issues`);
     }
@@ -174,9 +215,10 @@ async function groupIssues(options: CommentOptions): Promise<Map<number, IssueEn
   return issues;
 }
 
-async function commentOnIssues(options: CommentOptions): Promise<void> {
+async function commentOnIssues(options: CommentOptions): Promise<Array<Outcome>> {
   info('Resolving closed issues:');
-  const issues = await groupIssues(options);
+  const outcomes: Array<Outcome> = [];
+  const issues = await groupIssues(options, outcomes);
   if (issues.size > 0) {
     info('Commenting on issues:');
   }
@@ -186,22 +228,27 @@ async function commentOnIssues(options: CommentOptions): Promise<void> {
       .map((pr) => `#${pr}`)
       .join(', ');
     const body = renderBody(options, `🚀 Fixed by ${by}, released in:`, entry);
+    const request: PostRequest = { number: issue, body, direct: [...entry.direct], kind: 'issue' };
     // oxlint-disable-next-line no-await-in-loop
-    await post(options, { number: issue, body, direct: [...entry.direct], kind: 'issue' });
+    outcomes.push(await post(options, request));
   }
+  return outcomes;
 }
 
-async function comment(options: CommentOptions): Promise<void> {
+/** Every thread is attempted even when one fails; the caller decides what a failure means. */
+async function comment(options: CommentOptions): Promise<Array<Outcome>> {
   if (options.released.size === 0) {
     info('Nothing released to comment on.');
-    return;
+    return [];
   }
+  const outcomes: Array<Outcome> = [];
   if (options.commentOn === 'both' || options.commentOn === 'prs') {
-    await commentOnPullRequests(options);
+    outcomes.push(...(await commentOnPullRequests(options)));
   }
   if (options.commentOn === 'both' || options.commentOn === 'issues') {
-    await commentOnIssues(options);
+    outcomes.push(...(await commentOnIssues(options)));
   }
+  return outcomes;
 }
 
 export { alreadyCommented, comment, FOOTER, markerFor, releaseUrl, renderBody };

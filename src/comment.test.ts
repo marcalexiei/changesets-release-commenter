@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { alreadyCommented, FOOTER, markerFor, releaseUrl, renderBody } from './comment.js';
-import type { RenderOptions } from './comment.js';
+import { alreadyCommented, comment, FOOTER, markerFor, releaseUrl, renderBody } from './comment.js';
+import type { CommentApi, RenderOptions } from './comment.js';
 
 const base: RenderOptions = {
   markerId: 'changesets-release-commenter',
@@ -109,5 +109,61 @@ describe('the footer', () => {
     const marker = markerFor('changesets-release-commenter', ['pkg@1.0.0']);
     expect(renderBody({ ...base, footer: true }, 'x', entry)).toContain(marker);
     expect(renderBody({ ...base, footer: false }, 'x', entry)).toContain(marker);
+  });
+});
+
+describe('a thread that fails', () => {
+  const released = new Map([
+    [1, { direct: new Set(['pkg@1.0.0']), dependents: new Set<string>() }],
+    [2, { direct: new Set(['pkg@1.0.0']), dependents: new Set<string>() }],
+    [3, { direct: new Set(['pkg@1.0.0']), dependents: new Set<string>() }],
+  ]);
+
+  const run = async (api: CommentApi): ReturnType<typeof comment> =>
+    comment({ ...base, released, api, commentOn: 'both', dryRun: false });
+
+  it('does not stop the threads after it', async () => {
+    const posted: Array<number> = [];
+    const outcomes = await run({
+      listCommentBodies: async () => Promise.resolve([]),
+      createComment: async (issue) => {
+        if (issue === 2) {
+          throw new Error('Resource not accessible by integration');
+        }
+        posted.push(issue);
+        return Promise.resolve();
+      },
+      closingIssues: async () => Promise.resolve([]),
+    });
+
+    expect(posted).toEqual([1, 3]);
+    expect(outcomes.filter((outcome) => outcome.result === 'failed')).toEqual([
+      { kind: 'PR', number: 2, result: 'failed', error: 'Resource not accessible by integration' },
+    ]);
+  });
+
+  it('reports a PR whose closing issues cannot be read, and comments on the others', async () => {
+    const posted: Array<number> = [];
+    const outcomes = await run({
+      listCommentBodies: async () => Promise.resolve([]),
+      createComment: async (issue) => {
+        posted.push(issue);
+        return Promise.resolve();
+      },
+      closingIssues: async (pr) =>
+        pr === 1
+          ? Promise.reject(new Error('timeout'))
+          : Promise.resolve([{ number: pr * 10, repo: 'o/r' }]),
+    });
+
+    expect(posted).toEqual([1, 2, 3, 20, 30]);
+    expect(outcomes.filter((outcome) => outcome.result === 'failed')).toEqual([
+      {
+        kind: 'PR',
+        number: 1,
+        result: 'failed',
+        error: 'reading the issues it closes: timeout',
+      },
+    ]);
   });
 });
