@@ -80,16 +80,46 @@ jobs:
     runs-on: ubuntu-26.04
     permissions:
       contents: read
+      pull-requests: read # the smoke test reads the comments on a released PR
+      issues: read # and the issues that PR closes
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0 # the smoke test resolves an earlier release from its tag
       - name: Install dependencies
         uses: marcalexiei/github-actions/setup-node-and-pnpm@92c64c084d3479cff756151cb8163d03608f2acd # v2.4.2
         with:
           save-cache: false # shares its cache key with the lint job
       - name: Build
         run: pnpm build
+      # The release ships this bundle without ever running it otherwise. Run directly: `uses:`
+      # resolves the action from the commit, where the gitignored `dist/` does not exist.
+      - name: Run the built action against v0.3.1
+        id: smoke
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          env \
+            "INPUT_GITHUB-TOKEN=${GITHUB_TOKEN}" \
+            'INPUT_PUBLISHED-PACKAGES=[{"name":"changesets-release-commenter","version":"0.3.1"}]' \
+            INPUT_COMMENT-ON=both \
+            INPUT_RESOLVE-VIA=auto \
+            INPUT_MARKER-ID=changesets-release-commenter \
+            INPUT_INCLUDE-DEPENDENTS=true \
+            INPUT_LINK-RELEASES=true \
+            INPUT_FOOTER=true \
+            INPUT_DRY-RUN=true \
+            node dist/index.js
+      - name: Check what it resolved
+        env:
+          RELEASED: ${{ steps.smoke.outputs.released }}
+          EXPECTED: '{"37":{"direct":["changesets-release-commenter@0.3.1"],"dependents":[]}}'
+        run: |
+          if [ "${RELEASED}" != "${EXPECTED}" ]; then
+            echo "::error::released is ${RELEASED}, expected ${EXPECTED}"
+            exit 1
+          fi
 
   github-actions-audit:
     name: GitHub Actions audit
