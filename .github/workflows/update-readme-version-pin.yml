@@ -47,7 +47,7 @@ jobs:
       # GITHUB_TOKEN events start no workflows, and the ruleset needs CI to merge.
       - name: Setup release helper
         id: release-helper
-        uses: marcalexiei/github-actions/setup-github-app-user-bot@e9655755a6dc0040e650a931ee5d958c7d7a9f22 # v2.3.1
+        uses: marcalexiei/github-actions/setup-github-app-user-bot@0ac3ea042e173813ebc7b086c174705c5bfc0fb6 # v2.6.2
         with:
           app-id: ${{ vars.RELEASE_HELPER_APP_ID }}
           private-key: ${{ secrets.RELEASE_HELPER_PRIVATE_KEY }}
@@ -60,7 +60,7 @@ jobs:
           persist-credentials: false
 
       - name: Pin the example
-        uses: marcalexiei/github-actions/pin-readme-version@4a51d6dfcaac0c263c6f2efd97249eafe0076721 # v2.5.0
+        uses: marcalexiei/github-actions/pin-readme-version@0ac3ea042e173813ebc7b086c174705c5bfc0fb6 # v2.6.2
         with:
           tag: ${{ env.TAG }}
 
