@@ -32,7 +32,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install dependencies
-        uses: marcalexiei/github-actions/setup-node-and-pnpm@3145eb8a7405dee53929e0c2495e26af7191daf0 # v2.6.4
+        uses: marcalexiei/github-actions/setup-node-and-pnpm@0dca7a8dfeb729b5b00eaed578440239df457db7 # v2.6.5
       - name: Lint
         run: pnpm lint:js:ci
       - name: Format
@@ -51,7 +51,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install dependencies
-        uses: marcalexiei/github-actions/setup-node-and-pnpm@3145eb8a7405dee53929e0c2495e26af7191daf0 # v2.6.4
+        uses: marcalexiei/github-actions/setup-node-and-pnpm@0dca7a8dfeb729b5b00eaed578440239df457db7 # v2.6.5
         with:
           save-cache: false # shares its cache key with the lint job
       - name: Typecheck
@@ -68,7 +68,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install dependencies
-        uses: marcalexiei/github-actions/setup-node-and-pnpm@3145eb8a7405dee53929e0c2495e26af7191daf0 # v2.6.4
+        uses: marcalexiei/github-actions/setup-node-and-pnpm@0dca7a8dfeb729b5b00eaed578440239df457db7 # v2.6.5
         with:
           save-cache: false # shares its cache key with the lint job
       - name: Test
@@ -88,7 +88,7 @@ jobs:
           persist-credentials: false
           fetch-depth: 0 # the smoke test resolves an earlier release from its tag
       - name: Install dependencies
-        uses: marcalexiei/github-actions/setup-node-and-pnpm@3145eb8a7405dee53929e0c2495e26af7191daf0 # v2.6.4
+        uses: marcalexiei/github-actions/setup-node-and-pnpm@0dca7a8dfeb729b5b00eaed578440239df457db7 # v2.6.5
         with:
           save-cache: false # shares its cache key with the lint job
       - name: Build
@@ -170,6 +170,6 @@ jobs:
       contents: read # required to read the workflow file
     steps:
       - name: Check needed jobs
-        uses: marcalexiei/github-actions/check-needs@3145eb8a7405dee53929e0c2495e26af7191daf0 # v2.6.4
+        uses: marcalexiei/github-actions/check-needs@0dca7a8dfeb729b5b00eaed578440239df457db7 # v2.6.5
         with:
           needs: ${{ toJSON(needs) }}
