@@ -57,7 +57,6 @@ jobs:
           client-id: ${{ vars.RELEASE_HELPER_APP_ID }}
           private-key: ${{ secrets.RELEASE_HELPER_PRIVATE_KEY }}
           permission-contents: write # moves the major tag
-          permission-workflows: write # moving a tag onto workflow changes needs it
 
       - name: Move the major tag
         env:
