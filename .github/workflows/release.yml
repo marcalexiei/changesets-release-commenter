@@ -33,12 +33,14 @@ jobs:
 
     steps:
       # GITHUB_TOKEN events start no workflows, so CI would never run on the version PR.
-      - name: Setup release helper
+      - name: Create release helper token
         id: release-helper
-        uses: marcalexiei/github-actions/setup-github-app-user-bot@7d232a08434641e4df36f5921d4308a2bba23f9c # v3.0.0
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
         with:
           client-id: ${{ vars.RELEASE_HELPER_APP_ID }}
           private-key: ${{ secrets.RELEASE_HELPER_PRIVATE_KEY }}
+          permission-contents: write # pushes the release branch, tags and releases
+          permission-pull-requests: write # opens and updates the release PR
 
       # Full history, so Changesets finds the commit that added each changeset.
       - name: Checkout
