@@ -62,7 +62,7 @@ jobs:
           persist-credentials: false
 
       - name: Pin the example
-        uses: marcalexiei/github-actions/pin-readme-version@7d232a08434641e4df36f5921d4308a2bba23f9c # v3.0.0
+        uses: marcalexiei/github-actions/pin-readme-version@2c28f768b03ce332a96804ae076f15c84f239684 # v4.0.2
         with:
           tag: ${{ env.TAG }}
 
